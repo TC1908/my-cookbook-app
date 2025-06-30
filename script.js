@@ -4,7 +4,7 @@ let currentRecipeId = null;
 
 // GitHub integration (you'll need to update these)
 const GITHUB_CONFIG = {
-    username: 'YOUR_GITHUB_USERNAME', // Update this
+    username: 'tc1908', // Update this
     repository: 'my-cookbook-app',     // Update this
     token: null // For now, we'll use localStorage
 };

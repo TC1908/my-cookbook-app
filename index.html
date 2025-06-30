@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Virtual Cookbook</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#F5F5DC">
+</head>
+<body>
+    <!-- Mobile Menu Toggle -->
+    <div class="mobile-menu-toggle" onclick="toggleMobileMenu()">
+        <div class="hamburger-line"></div>
+        <div class="hamburger-line"></div>
+        <div class="hamburger-line"></div>
+    </div>
+
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar" id="sidebar">
+        <h2>My Cookbook</h2>
+        <ul>
+            <li><a href="#" onclick="showHome()">Home</a></li>
+            <li><a href="#" onclick="showAllRecipes()">All Recipes</a></li>
+            <li><a href="#" onclick="showAddRecipe()">Add New Recipe</a></li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Homepage -->
+        <div id="homepage" class="page active">
+            <h1>Welcome to Your Virtual Cookbook</h1>
+            <div class="category-grid" id="categoryGrid">
+                <!-- Categories will be dynamically populated -->
+            </div>
+        </div>
+
+        <!-- All Recipes Page -->
+        <div id="all-recipes-page" class="page">
+            <h1>All Recipes</h1>
+            <div class="filters" id="filters">
+                <button class="filter-btn active" onclick="filterRecipes('all')">All</button>
+                <!-- Filters will be dynamically populated -->
+            </div>
+            <div class="recipes-grid" id="recipesGrid">
+                <!-- Recipes will be dynamically populated -->
+            </div>
+        </div>
+
+        <!-- Add Recipe Page -->
+        <div id="add-recipe-page" class="page">
+            <h1>Add New Recipe</h1>
+            <form id="recipeForm" class="recipe-form">
+                <!-- Image Upload -->
+                <div class="form-section">
+                    <label>Recipe Photos (up to 5):</label>
+                    <input type="file" id="recipeImages" accept="image/*" multiple>
+                    <div id="imagePreview" class="image-preview"></div>
+                </div>
+
+                <!-- Recipe Title -->
+                <div class="form-section">
+                    <label for="recipeTitle">Recipe Title:</label>
+                    <input type="text" id="recipeTitle" required>
+                </div>
+
+                <!-- Cooking Time -->
+                <div class="form-section">
+                    <label>Cooking Time:</label>
+                    <div class="time-inputs">
+                        <input type="number" id="cookingHours" placeholder="Hours" min="0" max="23">
+                        <span>hours</span>
+                        <input type="number" id="cookingMinutes" placeholder="Minutes" min="0" max="59">
+                        <span>minutes</span>
+                    </div>
+                </div>
+
+                <!-- Categories -->
+                <div class="form-section">
+                    <label for="recipeCategories">Categories (comma-separated):</label>
+                    <input type="text" id="recipeCategories" placeholder="pasta, vegetarian, quick">
+                </div>
+
+                <!-- Ingredients -->
+                <div class="form-section">
+                    <label>Ingredients:</label>
+                    <div id="ingredientsList" class="ingredients-list">
+                        <div class="ingredient-row">
+                            <input type="text" placeholder="Ingredient name" class="ingredient-name">
+                            <input type="text" placeholder="Quantity" class="ingredient-quantity">
+                            <input type="text" placeholder="Unit" class="ingredient-unit">
+                            <button type="button" onclick="removeIngredient(this)">Remove</button>
+                        </div>
+                    </div>
+                    <button type="button" onclick="addIngredient()">Add Ingredient</button>
+                </div>
+
+                <!-- Recipe Steps -->
+                <div class="form-section">
+                    <label>Recipe Steps:</label>
+                    <div id="stepsList" class="steps-list">
+                        <div class="step-row">
+                            <span class="step-number">1.</span>
+                            <textarea placeholder="Describe this step..." class="step-text"></textarea>
+                            <button type="button" onclick="removeStep(this)">Remove</button>
+                        </div>
+                    </div>
+                    <button type="button" onclick="addStep()">Add Step</button>
+                </div>
+
+                <!-- Comments -->
+                <div class="form-section">
+                    <label for="recipeComments">Comments & Notes:</label>
+                    <textarea id="recipeComments" placeholder="Any notes or modifications for next time..."></textarea>
+                </div>
+
+                <button type="submit">Save Recipe</button>
+            </form>
+        </div>
+
+        <!-- Recipe Detail View -->
+        <div id="recipe-detail-page" class="page">
+            <button onclick="goBack()" class="back-btn">← Back</button>
+            <div id="recipeDetailContent"></div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

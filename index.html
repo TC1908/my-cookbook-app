@@ -9,20 +9,13 @@
     <meta name="theme-color" content="#F5F5DC">
 </head>
 <body>
-    <!-- Mobile Menu Toggle -->
-    <div class="mobile-menu-toggle" onclick="toggleMobileMenu()">
-        <div class="hamburger-line"></div>
-        <div class="hamburger-line"></div>
-        <div class="hamburger-line"></div>
-    </div>
-
-    <!-- Sidebar Navigation -->
-    <nav class="sidebar" id="sidebar">
-        <h2>My Cookbook</h2>
-        <ul>
-            <li><a href="#" onclick="showHome()">Home</a></li>
-            <li><a href="#" onclick="showAllRecipes()">All Recipes</a></li>
-            <li><a href="#" onclick="showAddRecipe()">Add New Recipe</a></li>
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+        <div class="nav-brand">My Cookbook</div>
+        <ul class="nav-links">
+            <li><a href="#" onclick="showHome()" id="home-link" class="active">Home</a></li>
+            <li><a href="#" onclick="showAllRecipes()" id="recipes-link">All Recipes</a></li>
+            <li><a href="#" onclick="showAddRecipe()" id="add-link">Add New Recipe</a></li>
         </ul>
     </nav>
 

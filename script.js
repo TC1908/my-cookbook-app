@@ -54,8 +54,11 @@ function updateActiveNavLink(activeLinkId) {
 }
 
 // Recipe management functions
-function handleRecipeSubmit(e) {
+async function handleRecipeSubmit(e) {
     e.preventDefault();
+    
+    // Get images from the form
+    const images = await getRecipeImages();
     
     const recipe = {
         id: Date.now().toString(),
@@ -65,7 +68,7 @@ function handleRecipeSubmit(e) {
         categories: document.getElementById('recipeCategories').value.split(',').map(cat => cat.trim()).filter(cat => cat),
         cookingTime: getCookingTime(),
         comments: document.getElementById('recipeComments').value,
-        images: [], // We'll handle image storage differently for GitHub
+        images: images, // Now properly storing images
         dateCreated: new Date().toISOString()
     };
     
@@ -74,6 +77,34 @@ function handleRecipeSubmit(e) {
     resetForm();
     showSuccessMessage('Recipe saved successfully!');
     showAllRecipes();
+}
+
+function getRecipeImages() {
+    return new Promise((resolve) => {
+        const fileInput = document.getElementById('recipeImages');
+        const files = Array.from(fileInput.files).slice(0, 5); // Limit to 5 images
+        const imageData = [];
+        
+        if (files.length === 0) {
+            resolve([]);
+            return;
+        }
+        
+        let processedFiles = 0;
+        
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imageData.push(e.target.result); // Store as base64 data URL
+                processedFiles++;
+                
+                if (processedFiles === files.length) {
+                    resolve(imageData);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    });
 }
 
 function deleteRecipe(recipeId, event) {
@@ -198,12 +229,27 @@ function handleImagePreview(e) {
     const preview = document.getElementById('imagePreview');
     preview.innerHTML = '';
     
+    if (files.length === 0) {
+        return;
+    }
+    
     files.forEach(file => {
         const reader = new FileReader();
         reader.onload = function(e) {
+            const imgContainer = document.createElement('div');
+            imgContainer.style.position = 'relative';
+            imgContainer.style.display = 'inline-block';
+            
             const img = document.createElement('img');
             img.src = e.target.result;
-            preview.appendChild(img);
+            img.style.width = '100px';
+            img.style.height = '100px';
+            img.style.objectFit = 'cover';
+            img.style.borderRadius = '8px';
+            img.style.border = '2px solid #B8D8D8';
+            
+            imgContainer.appendChild(img);
+            preview.appendChild(imgContainer);
         };
         reader.readAsDataURL(file);
     });
@@ -330,8 +376,13 @@ function displayRecipes(recipesToShow = recipes) {
         const recipeCard = document.createElement('div');
         recipeCard.className = 'recipe-card';
         
+        // Create image display - show first image if available
+        const imageHtml = recipe.images && recipe.images.length > 0 
+            ? `<img src="${recipe.images[0]}" alt="${recipe.title}" style="width: 100%; height: 200px; object-fit: cover; border-radius: 10px; margin-bottom: 15px;">` 
+            : '<div style="width: 100%; height: 200px; background: linear-gradient(135deg, #B8D8D8, #7A9E9F); border-radius: 10px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; color: #4F6367; font-size: 18px; font-weight: bold;">No Image</div>';
+        
         recipeCard.innerHTML = `
-            ${recipe.images.length > 0 ? `<img src="${recipe.images[0]}" alt="${recipe.title}">` : ''}
+            ${imageHtml}
             <div class="recipe-title">${recipe.title}</div>
             <div class="recipe-time">${formatCookingTime(recipe.cookingTime)}</div>
             <div class="recipe-categories">
@@ -351,9 +402,19 @@ function showRecipeDetail(recipeId) {
     const recipe = recipes.find(r => r.id === recipeId);
     if (!recipe) return;
     
+    // Create image gallery for detail view
+    const imageGalleryHtml = recipe.images && recipe.images.length > 0 
+        ? `<div style="margin-bottom: 20px;">
+             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+               ${recipe.images.map(img => `<img src="${img}" alt="${recipe.title}" style="width: 150px; height: 150px; object-fit: cover; border-radius: 10px; border: 2px solid #B8D8D8;">`).join('')}
+             </div>
+           </div>`
+        : '';
+    
     const content = document.getElementById('recipeDetailContent');
     content.innerHTML = `
         <h1>${recipe.title}</h1>
+        ${imageGalleryHtml}
         <div class="recipe-time">${formatCookingTime(recipe.cookingTime)}</div>
         <div class="recipe-categories" style="margin: 15px 0;">
             ${recipe.categories.map(cat => `<span class="category-tag">${cat}</span>`).join('')}

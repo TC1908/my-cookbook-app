@@ -2,13 +2,6 @@
 let recipes = [];
 let currentRecipeId = null;
 
-// GitHub integration (you'll need to update these)
-const GITHUB_CONFIG = {
-    username: 'tc1908', // Update this
-    repository: 'my-cookbook-app',     // Update this
-    token: null // For now, we'll use localStorage
-};
-
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
     loadRecipes();
@@ -23,38 +16,41 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Navigation functions
-function toggleMobileMenu() {
-    const sidebar = document.getElementById('sidebar');
-    sidebar.classList.toggle('active');
-}
-
 function showHome() {
     showPage('homepage');
+    updateActiveNavLink('home-link');
     updateCategoryGrid();
-    closeMobileMenu();
 }
 
 function showAllRecipes() {
     showPage('all-recipes-page');
+    updateActiveNavLink('recipes-link');
     displayRecipes();
-    closeMobileMenu();
+    updateFilters();
 }
 
 function showAddRecipe() {
     showPage('add-recipe-page');
+    updateActiveNavLink('add-link');
     resetForm();
-    closeMobileMenu();
 }
 
 function showPage(pageId) {
+    // Hide all pages
     document.querySelectorAll('.page').forEach(page => {
         page.classList.remove('active');
     });
+    // Show selected page
     document.getElementById(pageId).classList.add('active');
 }
 
-function closeMobileMenu() {
-    document.getElementById('sidebar').classList.remove('active');
+function updateActiveNavLink(activeLinkId) {
+    // Remove active class from all nav links
+    document.querySelectorAll('.nav-links a').forEach(link => {
+        link.classList.remove('active');
+    });
+    // Add active class to current link
+    document.getElementById(activeLinkId).classList.add('active');
 }
 
 // Recipe management functions
@@ -246,10 +242,8 @@ function updateFilters() {
     });
     
     const filters = document.getElementById('filters');
-    // Keep the "All" button
-    const allButton = filters.querySelector('.filter-btn');
-    filters.innerHTML = '';
-    filters.appendChild(allButton);
+    // Clear and add "All" button
+    filters.innerHTML = '<button class="filter-btn active" onclick="filterRecipes(\'all\')">All</button>';
     
     Array.from(categories).sort().forEach(category => {
         const button = document.createElement('button');
@@ -262,7 +256,7 @@ function updateFilters() {
 
 function filterAndShowRecipes(category) {
     showAllRecipes();
-    filterRecipes(category);
+    setTimeout(() => filterRecipes(category), 100); // Small delay to ensure page is shown
 }
 
 function filterRecipes(category) {
@@ -290,7 +284,7 @@ function displayRecipes(recipesToShow = recipes) {
     recipesGrid.innerHTML = '';
     
     if (recipesToShow.length === 0) {
-        recipesGrid.innerHTML = '<p>No recipes found. Add your first recipe!</p>';
+        recipesGrid.innerHTML = '<p style="text-align: center; font-size: 1.2em; color: #8B4513;">No recipes found. Add your first recipe!</p>';
         return;
     }
     
@@ -325,19 +319,20 @@ function showRecipeDetail(recipeId) {
         </div>
         
         <h3>Ingredients:</h3>
-        <ul>
+        <ul style="margin: 10px 0 20px 20px;">
             ${recipe.ingredients.map(ing => `<li>${ing.quantity} ${ing.unit} ${ing.name}</li>`).join('')}
         </ul>
         
         <h3>Instructions:</h3>
-        <ol>
-            ${recipe.steps.map(step => `<li>${step}</li>`).join('')}
+        <ol style="margin: 10px 0 20px 20px;">
+            ${recipe.steps.map(step => `<li style="margin-bottom: 10px;">${step}</li>`).join('')}
         </ol>
         
-        ${recipe.comments ? `<h3>Notes & Comments:</h3><p>${recipe.comments}</p>` : ''}
+        ${recipe.comments ? `<h3>Notes & Comments:</h3><p style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 10px 0;">${recipe.comments}</p>` : ''}
     `;
     
     showPage('recipe-detail-page');
+    // Don't update nav links for detail page
 }
 
 function goBack() {

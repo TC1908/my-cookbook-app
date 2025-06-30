@@ -72,8 +72,46 @@ function handleRecipeSubmit(e) {
     recipes.push(recipe);
     saveRecipes();
     resetForm();
+    showSuccessMessage('Recipe saved successfully!');
     showAllRecipes();
-    alert('Recipe saved successfully!');
+}
+
+function deleteRecipe(recipeId, event) {
+    event.stopPropagation(); // Prevent card click
+    
+    const recipe = recipes.find(r => r.id === recipeId);
+    if (!recipe) return;
+    
+    if (confirm(`Are you sure you want to delete "${recipe.title}"? This cannot be undone.`)) {
+        recipes = recipes.filter(r => r.id !== recipeId);
+        saveRecipes();
+        showSuccessMessage('Recipe deleted successfully!');
+        
+        // Update displays
+        displayRecipes();
+        updateCategoryGrid();
+        updateFilters();
+    }
+}
+
+function showSuccessMessage(message) {
+    // Remove any existing messages
+    const existingMessages = document.querySelectorAll('.message');
+    existingMessages.forEach(msg => msg.remove());
+    
+    // Create new message
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message success';
+    messageDiv.textContent = message;
+    
+    // Insert at the top of main content
+    const mainContent = document.querySelector('.main-content');
+    mainContent.insertBefore(messageDiv, mainContent.firstChild);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        messageDiv.remove();
+    }, 3000);
 }
 
 function getIngredients() {
@@ -284,14 +322,13 @@ function displayRecipes(recipesToShow = recipes) {
     recipesGrid.innerHTML = '';
     
     if (recipesToShow.length === 0) {
-        recipesGrid.innerHTML = '<p style="text-align: center; font-size: 1.2em; color: #8B4513;">No recipes found. Add your first recipe!</p>';
+        recipesGrid.innerHTML = '<p style="text-align: center; font-size: 1.2em; color: #4F6367;">No recipes found. Add your first recipe!</p>';
         return;
     }
     
     recipesToShow.forEach(recipe => {
         const recipeCard = document.createElement('div');
         recipeCard.className = 'recipe-card';
-        recipeCard.onclick = () => showRecipeDetail(recipe.id);
         
         recipeCard.innerHTML = `
             ${recipe.images.length > 0 ? `<img src="${recipe.images[0]}" alt="${recipe.title}">` : ''}
@@ -299,6 +336,10 @@ function displayRecipes(recipesToShow = recipes) {
             <div class="recipe-time">${formatCookingTime(recipe.cookingTime)}</div>
             <div class="recipe-categories">
                 ${recipe.categories.map(cat => `<span class="category-tag">${cat}</span>`).join('')}
+            </div>
+            <div class="recipe-actions">
+                <button class="view-recipe-btn" onclick="showRecipeDetail('${recipe.id}')">View Recipe</button>
+                <button class="delete-recipe-btn" onclick="deleteRecipe('${recipe.id}', event)">Delete</button>
             </div>
         `;
         
@@ -328,11 +369,29 @@ function showRecipeDetail(recipeId) {
             ${recipe.steps.map(step => `<li style="margin-bottom: 10px;">${step}</li>`).join('')}
         </ol>
         
-        ${recipe.comments ? `<h3>Notes & Comments:</h3><p style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 10px 0;">${recipe.comments}</p>` : ''}
+        ${recipe.comments ? `<h3>Notes & Comments:</h3><p style="background: #EEF5DB; padding: 15px; border-radius: 8px; margin: 10px 0; border: 2px solid #B8D8D8;">${recipe.comments}</p>` : ''}
+        
+        <div style="margin-top: 30px;">
+            <button class="delete-recipe-btn" onclick="deleteRecipeFromDetail('${recipe.id}')">Delete Recipe</button>
+        </div>
     `;
     
     showPage('recipe-detail-page');
     // Don't update nav links for detail page
+}
+
+function deleteRecipeFromDetail(recipeId) {
+    const recipe = recipes.find(r => r.id === recipeId);
+    if (!recipe) return;
+    
+    if (confirm(`Are you sure you want to delete "${recipe.title}"? This cannot be undone.`)) {
+        recipes = recipes.filter(r => r.id !== recipeId);
+        saveRecipes();
+        showSuccessMessage('Recipe deleted successfully!');
+        showAllRecipes(); // Go back to all recipes page
+        updateCategoryGrid();
+        updateFilters();
+    }
 }
 
 function goBack() {

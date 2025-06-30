@@ -1,0 +1,16 @@
+{
+    "name": "My Virtual Cookbook",
+    "short_name": "Cookbook",
+    "description": "Personal virtual cookbook for storing and organizing recipes",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#F5F5DC",
+    "theme_color": "#8B4513",
+    "icons": [
+        {
+            "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiByeD0iMjAiIGZpbGw9IiM4QjQ1MTMiLz4KPHN2ZyB4PSI0MCIgeT0iNDAiIHdpZHRoPSIxMTIiIGhlaWdodD0iMTEyIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiPgo8cGF0aCBkPSJNMTIgMkwyIDdMMTIgMTJMMjIgN0wxMiAyWiIgZmlsbD0iI0Y1RjVEQyIvPgo8cGF0aCBkPSJNMiA3VjE3TDEyIDIyVjEyTDIgN1oiIGZpbGw9IiNGNUY1REMiLz4KPHN2ZyB4PSI0IiB5PSI0IiB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSI+CjxwYXRoIGQ9Ik04IDEySDEyTTE2IDEySDE2LjAwMU0xMiA4VjEyTTEyIDE2VjE2LjAwMSIgc3Ryb2tlPSIjOEI0NTEzIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4KPC9zdmc+Cg==",
+            "sizes": "192x192",
+            "type": "image/svg+xml"
+        }
+    ]
+}

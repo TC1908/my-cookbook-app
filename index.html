@@ -1,124 +1,343 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Virtual Cookbook</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#F5F5DC">
-</head>
-<body>
-    <!-- Top Navigation -->
-    <nav class="top-nav">
-        <div class="nav-brand">My Cookbook</div>
-        <ul class="nav-links">
-            <li><a href="#" onclick="showHome()" id="home-link" class="active">Home</a></li>
-            <li><a href="#" onclick="showAllRecipes()" id="recipes-link">All Recipes</a></li>
-            <li><a href="#" onclick="showAddRecipe()" id="add-link">Add New Recipe</a></li>
-        </ul>
-    </nav>
+// Global variables
+let recipes = [];
+let currentRecipeId = null;
+let currentRecipe = null;
 
-    <!-- Main Content -->
-    <main class="main-content">
-        <!-- Homepage -->
-        <div id="homepage" class="page active">
-            <h1>Welcome to Your Virtual Cookbook</h1>
-            <div class="category-grid" id="categoryGrid">
-                <!-- Categories will be dynamically populated -->
-            </div>
-        </div>
+// Initialize the app
+document.addEventListener('DOMContentLoaded', function() {
+    loadRecipes();
+    updateCategoryGrid();
+    updateFilters();
+    
+    // Setup form submission
+    document.getElementById('recipeForm').addEventListener('submit', handleRecipeSubmit);
+    
+    // Setup image preview
+    document.getElementById('recipeImages').addEventListener('change', handleImagePreview);
+});
 
-        <!-- All Recipes Page -->
-        <div id="all-recipes-page" class="page">
-            <h1>All Recipes</h1>
-            <div class="filters" id="filters">
-                <button class="filter-btn active" onclick="filterRecipes('all')">All</button>
-                <!-- Filters will be dynamically populated -->
-            </div>
-            <div class="recipes-grid" id="recipesGrid">
-                <!-- Recipes will be dynamically populated -->
-            </div>
-        </div>
+// Navigation functions
+function showHome() {
+    showPage('homepage');
+    updateActiveNavLink('home-link');
+    updateCategoryGrid();
+}
 
-        <!-- Add Recipe Page -->
-        <div id="add-recipe-page" class="page">
-            <h1>Add New Recipe</h1>
-            <form id="recipeForm" class="recipe-form">
-                <!-- Image Upload -->
-                <div class="form-section">
-                    <label>Recipe Photos (up to 5):</label>
-                    <input type="file" id="recipeImages" accept="image/*" multiple>
-                    <div id="imagePreview" class="image-preview"></div>
-                </div>
+function showAllRecipes() {
+    showPage('all-recipes-page');
+    updateActiveNavLink('recipes-link');
+    displayRecipes();
+    updateFilters();
+}
 
-                <!-- Recipe Title -->
-                <div class="form-section">
-                    <label for="recipeTitle">Recipe Title:</label>
-                    <input type="text" id="recipeTitle" required>
-                </div>
+function showAddRecipe() {
+    showPage('add-recipe-page');
+    updateActiveNavLink('add-link');
+    resetForm();
+}
 
-                <!-- Cooking Time -->
-                <div class="form-section">
-                    <label>Cooking Time:</label>
-                    <div class="time-inputs">
-                        <input type="number" id="cookingHours" placeholder="Hours" min="0" max="23">
-                        <span>hours</span>
-                        <input type="number" id="cookingMinutes" placeholder="Minutes" min="0" max="59">
-                        <span>minutes</span>
-                    </div>
-                </div>
+function showPage(pageId) {
+    // Hide all pages
+    document.querySelectorAll('.page').forEach(page => {
+        page.classList.remove('active');
+    });
+    // Show selected page
+    document.getElementById(pageId).classList.add('active');
+}
 
-                <!-- Categories -->
-                <div class="form-section">
-                    <label for="recipeCategories">Categories (comma-separated):</label>
-                    <input type="text" id="recipeCategories" placeholder="pasta, vegetarian, quick">
-                </div>
+function updateActiveNavLink(activeLinkId) {
+    // Remove active class from all nav links
+    document.querySelectorAll('.nav-links a').forEach(link => {
+        link.classList.remove('active');
+    });
+    // Add active class to current link
+    document.getElementById(activeLinkId).classList.add('active');
+}
 
-                <!-- Ingredients -->
-                <div class="form-section">
-                    <label>Ingredients:</label>
-                    <div id="ingredientsList" class="ingredients-list">
-                        <div class="ingredient-row">
-                            <input type="text" placeholder="Ingredient name" class="ingredient-name">
-                            <input type="text" placeholder="Quantity" class="ingredient-quantity">
-                            <input type="text" placeholder="Unit" class="ingredient-unit">
-                            <button type="button" onclick="removeIngredient(this)">Remove</button>
-                        </div>
-                    </div>
-                    <button type="button" onclick="addIngredient()">Add Ingredient</button>
-                </div>
+// Recipe management functions
+async function handleRecipeSubmit(e) {
+    e.preventDefault();
+    
+    // Get images from the form
+    const images = await getRecipeImages();
+    
+    const recipe = {
+        id: Date.now().toString(),
+        title: document.getElementById('recipeTitle').value,
+        servings: parseInt(document.getElementById('servingSize').value),
+        ingredients: getIngredients(),
+        steps: getSteps(),
+        categories: document.getElementById('recipeCategories').value.split(',').map(cat => cat.trim()).filter(cat => cat),
+        cookingTime: getCookingTime(),
+        comments: document.getElementById('recipeComments').value,
+        images: images,
+        dateCreated: new Date().toISOString()
+    };
+    
+    recipes.push(recipe);
+    saveRecipes();
+    resetForm();
+    showSuccessMessage('Recipe saved successfully!');
+    showAllRecipes();
+}
 
-                <!-- Recipe Steps -->
-                <div class="form-section">
-                    <label>Recipe Steps:</label>
-                    <div id="stepsList" class="steps-list">
-                        <div class="step-row">
-                            <span class="step-number">1.</span>
-                            <textarea placeholder="Describe this step..." class="step-text"></textarea>
-                            <button type="button" onclick="removeStep(this)">Remove</button>
-                        </div>
-                    </div>
-                    <button type="button" onclick="addStep()">Add Step</button>
-                </div>
+function getRecipeImages() {
+    return new Promise((resolve) => {
+        const fileInput = document.getElementById('recipeImages');
+        const files = Array.from(fileInput.files).slice(0, 5); // Limit to 5 images
+        const imageData = [];
+        
+        if (files.length === 0) {
+            resolve([]);
+            return;
+        }
+        
+        let processedFiles = 0;
+        
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imageData.push(e.target.result);
+                processedFiles++;
+                
+                if (processedFiles === files.length) {
+                    resolve(imageData);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    });
+}
 
-                <!-- Comments -->
-                <div class="form-section">
-                    <label for="recipeComments">Comments & Notes:</label>
-                    <textarea id="recipeComments" placeholder="Any notes or modifications for next time..."></textarea>
-                </div>
+// Ingredient scaling functions
+function parseQuantity(quantityString) {
+    if (!quantityString || quantityString.trim() === '') return 0;
+    
+    // Handle fractions like 1/2, 3/4, etc.
+    const fractionMatch = quantityString.match(/(\d+)\/(\d+)/);
+    if (fractionMatch) {
+        return parseFloat(fractionMatch[1]) / parseFloat(fractionMatch[2]);
+    }
+    
+    // Handle mixed numbers like 1 1/2
+    const mixedMatch = quantityString.match(/(\d+)\s+(\d+)\/(\d+)/);
+    if (mixedMatch) {
+        return parseFloat(mixedMatch[1]) + (parseFloat(mixedMatch[2]) / parseFloat(mixedMatch[3]));
+    }
+    
+    // Handle decimals and regular numbers
+    const number = parseFloat(quantityString);
+    return isNaN(number) ? 0 : number;
+}
 
-                <button type="submit">Save Recipe</button>
-            </form>
-        </div>
+function formatQuantity(quantity) {
+    if (quantity === 0) return '0';
+    
+    // Handle very small numbers
+    if (quantity < 0.1) {
+        return quantity.toPrecision(2);
+    }
+    
+    // Handle fractions nicely
+    const commonFractions = {
+        0.25: '1/4',
+        0.33: '1/3',
+        0.5: '1/2',
+        0.67: '2/3',
+        0.75: '3/4'
+    };
+    
+    const whole = Math.floor(quantity);
+    const fraction = quantity - whole;
+    
+    // Check if the fractional part matches a common fraction
+    for (const [decimal, frac] of Object.entries(commonFractions)) {
+        if (Math.abs(fraction - parseFloat(decimal)) < 0.05) {
+            return whole > 0 ? `${whole} ${frac}` : frac;
+        }
+    }
+    
+    // If it's close to a whole number, round it
+    if (Math.abs(quantity - Math.round(quantity)) < 0.1) {
+        return Math.round(quantity).toString();
+    }
+    
+    // Otherwise show one decimal place
+    return quantity.toFixed(1);
+}
 
-        <!-- Recipe Detail View -->
-        <div id="recipe-detail-page" class="page">
-            <button onclick="goBack()" class="back-btn">← Back</button>
-            <div id="recipeDetailContent"></div>
-        </div>
-    </main>
+function scaleIngredients(ingredients, originalServings, newServings) {
+    const scaleFactor = newServings / originalServings;
+    
+    return ingredients.map(ingredient => {
+        const originalQuantity = parseQuantity(ingredient.quantity);
+        const newQuantity = originalQuantity * scaleFactor;
+        
+        return {
+            ...ingredient,
+            quantity: formatQuantity(newQuantity)
+        };
+    });
+}
 
-    <script src="script.js"></script>
-</body>
-</html>
+function updateServingSize() {
+    const newServings = parseInt(document.getElementById('currentServings').value);
+    if (!currentRecipe || newServings <= 0) return;
+    
+    const scaledIngredients = scaleIngredients(
+        currentRecipe.ingredients,
+        currentRecipe.servings,
+        newServings
+    );
+    
+    // Update the ingredients display
+    const ingredientsList = document.querySelector('#recipeDetailContent ul');
+    if (ingredientsList) {
+        ingredientsList.innerHTML = scaledIngredients.map(ing => 
+            `<li>${ing.quantity} ${ing.unit} ${ing.name}</li>`
+        ).join('');
+    }
+}
+
+function increaseServings() {
+    const currentInput = document.getElementById('currentServings');
+    const currentValue = parseInt(currentInput.value);
+    currentInput.value = currentValue + 1;
+    updateServingSize();
+}
+
+function decreaseServings() {
+    const currentInput = document.getElementById('currentServings');
+    const currentValue = parseInt(currentInput.value);
+    if (currentValue > 1) {
+        currentInput.value = currentValue - 1;
+        updateServingSize();
+    }
+}
+
+function deleteRecipe(recipeId, event) {
+    event.stopPropagation();
+    
+    const recipe = recipes.find(r => r.id === recipeId);
+    if (!recipe) return;
+    
+    if (confirm(`Are you sure you want to delete "${recipe.title}"? This cannot be undone.`)) {
+        recipes = recipes.filter(r => r.id !== recipeId);
+        saveRecipes();
+        showSuccessMessage('Recipe deleted successfully!');
+        
+        displayRecipes();
+        updateCategoryGrid();
+        updateFilters();
+    }
+}
+
+function showSuccessMessage(message) {
+    const existingMessages = document.querySelectorAll('.message');
+    existingMessages.forEach(msg => msg.remove());
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message success';
+    messageDiv.textContent = message;
+    
+    const mainContent = document.querySelector('.main-content');
+    mainContent.insertBefore(messageDiv, mainContent.firstChild);
+    
+    setTimeout(() => {
+        messageDiv.remove();
+    }, 3000);
+}
+
+function getIngredients() {
+    const ingredients = [];
+    document.querySelectorAll('.ingredient-row').forEach(row => {
+        const name = row.querySelector('.ingredient-name').value;
+        const quantity = row.querySelector('.ingredient-quantity').value;
+        const unit = row.querySelector('.ingredient-unit').value;
+        
+        if (name.trim()) {
+            ingredients.push({ name, quantity, unit });
+        }
+    });
+    return ingredients;
+}
+
+function getSteps() {
+    const steps = [];
+    document.querySelectorAll('.step-text').forEach(textarea => {
+        if (textarea.value.trim()) {
+            steps.push(textarea.value.trim());
+        }
+    });
+    return steps;
+}
+
+function getCookingTime() {
+    const hours = parseInt(document.getElementById('cookingHours').value) || 0;
+    const minutes = parseInt(document.getElementById('cookingMinutes').value) || 0;
+    return { hours, minutes };
+}
+
+function formatCookingTime(time) {
+    if (time.hours === 0) {
+        return `${time.minutes} minutes`;
+    } else if (time.minutes === 0) {
+        return `${time.hours} hour${time.hours > 1 ? 's' : ''}`;
+    } else {
+        return `${time.hours} hour${time.hours > 1 ? 's' : ''} ${time.minutes} minutes`;
+    }
+}
+
+// Form manipulation functions
+function addIngredient() {
+    const ingredientsList = document.getElementById('ingredientsList');
+    const newRow = document.createElement('div');
+    newRow.className = 'ingredient-row';
+    newRow.innerHTML = `
+        <input type="text" placeholder="Ingredient name" class="ingredient-name">
+        <input type="text" placeholder="Quantity" class="ingredient-quantity">
+        <input type="text" placeholder="Unit" class="ingredient-unit">
+        <button type="button" onclick="removeIngredient(this)">Remove</button>
+    `;
+    ingredientsList.appendChild(newRow);
+}
+
+function removeIngredient(button) {
+    button.parentElement.remove();
+}
+
+function addStep() {
+    const stepsList = document.getElementById('stepsList');
+    const stepNumber = stepsList.children.length + 1;
+    const newRow = document.createElement('div');
+    newRow.className = 'step-row';
+    newRow.innerHTML = `
+        <span class="step-number">${stepNumber}.</span>
+        <textarea placeholder="Describe this step..." class="step-text"></textarea>
+        <button type="button" onclick="removeStep(this)">Remove</button>
+    `;
+    stepsList.appendChild(newRow);
+}
+
+function removeStep(button) {
+    button.parentElement.remove();
+    document.querySelectorAll('.step-number').forEach((stepNum, index) => {
+        stepNum.textContent = `${index + 1}.`;
+    });
+}
+
+function handleImagePreview(e) {
+    const files = Array.from(e.target.files).slice(0, 5);
+    const preview = document.getElementById('imagePreview');
+    preview.innerHTML = '';
+    
+    if (files.length === 0) {
+        return;
+    }
+    
+    files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const imgContainer = document.createElement('div');
+            imgContainer.style.position = 'relative';
+         

@@ -9,12 +9,29 @@
     <meta name="theme-color" content="#F5F5DC">
 </head>
 <body>
+    <!-- Recipe Selection Modal -->
+    <div id="recipeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Select a Recipe</h3>
+                <span class="close" onclick="closeRecipeModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="recipeSearch" placeholder="Search recipes..." onkeyup="filterModalRecipes()">
+                <div id="modalRecipeList" class="modal-recipe-list">
+                    <!-- Recipes will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Top Navigation -->
     <nav class="top-nav">
         <div class="nav-brand">My Cookbook</div>
         <ul class="nav-links">
             <li><a href="#" onclick="showHome()" id="home-link" class="active">Home</a></li>
             <li><a href="#" onclick="showAllRecipes()" id="recipes-link">All Recipes</a></li>
+            <li><a href="#" onclick="showSchedule()" id="schedule-link">Schedule</a></li>
             <li><a href="#" onclick="showAddRecipe()" id="add-link">Add New Recipe</a></li>
         </ul>
     </nav>
@@ -38,6 +55,35 @@
             </div>
             <div class="recipes-grid" id="recipesGrid">
                 <!-- Recipes will be dynamically populated -->
+            </div>
+        </div>
+
+        <!-- Schedule Page -->
+        <div id="schedule-page" class="page">
+            <h1>Meal Planning Schedule</h1>
+            <div class="schedule-controls">
+                <button onclick="previousWeeks()" class="week-nav-btn">← Previous 2 Weeks</button>
+                <button onclick="currentWeeks()" class="week-nav-btn current">Current 2 Weeks</button>
+                <button onclick="nextWeeks()" class="week-nav-btn">Next 2 Weeks →</button>
+            </div>
+            <div class="schedule-container">
+                <table class="schedule-table" id="scheduleTable">
+                    <thead>
+                        <tr>
+                            <th class="week-header"></th>
+                            <th>Monday</th>
+                            <th>Tuesday</th>
+                            <th>Wednesday</th>
+                            <th>Thursday</th>
+                            <th>Friday</th>
+                            <th>Saturday</th>
+                            <th>Sunday</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scheduleBody">
+                        <!-- Schedule will be generated here -->
+                    </tbody>
+                </table>
             </div>
         </div>
 

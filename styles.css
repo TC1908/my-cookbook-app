@@ -159,6 +159,25 @@ body {
     font-weight: bold;
 }
 
+/* Basket Navigation Link */
+.basket-link {
+    position: relative;
+    font-size: 1.2em !important;
+}
+
+#basketCount {
+    background-color: #FE5F55;
+    color: white;
+    border-radius: 50%;
+    padding: 2px 6px;
+    font-size: 0.8em;
+    font-weight: bold;
+    margin-left: 5px;
+    min-width: 18px;
+    text-align: center;
+    display: inline-block;
+}
+
 /* Main Content */
 .main-content {
     padding: 30px 20px;
@@ -173,6 +192,255 @@ body {
 
 .page.active {
     display: block;
+}
+
+/* Basket Controls */
+.basket-controls {
+    background: white;
+    padding: 20px;
+    border-radius: 15px;
+    margin-bottom: 30px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.date-range-control {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.date-range-control label {
+    font-weight: bold;
+    color: #4F6367;
+}
+
+.date-inputs {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.date-inputs input {
+    padding: 8px 12px;
+    border: 2px solid #B8D8D8;
+    border-radius: 8px;
+    font-size: 16px;
+}
+
+.date-inputs span {
+    color: #4F6367;
+    font-weight: 500;
+}
+
+.add-to-basket-btn {
+    background-color: #4F6367;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: background-color 0.3s;
+}
+
+.add-to-basket-btn:hover {
+    background-color: #7A9E9F;
+}
+
+/* Basket Page Styles */
+.basket-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.basket-period {
+    background: white;
+    padding: 15px 20px;
+    border-radius: 10px;
+    border: 2px solid #B8D8D8;
+    font-weight: bold;
+    color: #4F6367;
+}
+
+.clear-basket-btn {
+    background-color: #FE5F55;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s;
+}
+
+.clear-basket-btn:hover {
+    background-color: #e54b42;
+}
+
+.basket-content {
+    display: grid;
+    gap: 30px;
+}
+
+.manual-add-section {
+    background: white;
+    padding: 25px;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border: 2px solid #B8D8D8;
+}
+
+.manual-add-section h3 {
+    color: #4F6367;
+    margin-bottom: 20px;
+}
+
+.manual-add-form {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr auto;
+    gap: 15px;
+    align-items: end;
+}
+
+.manual-input {
+    padding: 12px;
+    border: 2px solid #B8D8D8;
+    border-radius: 8px;
+    font-size: 16px;
+}
+
+.manual-input:focus {
+    outline: none;
+    border-color: #4F6367;
+}
+
+.add-manual-btn {
+    background-color: #4F6367;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s;
+    white-space: nowrap;
+}
+
+.add-manual-btn:hover {
+    background-color: #7A9E9F;
+}
+
+.basket-items {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border: 2px solid #B8D8D8;
+    overflow: hidden;
+}
+
+.basket-items h3 {
+    background: linear-gradient(135deg, #4F6367, #7A9E9F);
+    color: white;
+    padding: 20px;
+    margin: 0;
+    font-size: 1.2em;
+}
+
+.basket-list {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.basket-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid #e0e0e0;
+    transition: background-color 0.3s;
+}
+
+.basket-item:last-child {
+    border-bottom: none;
+}
+
+.basket-item:hover {
+    background-color: #f8f9fa;
+}
+
+.basket-item-info {
+    flex: 1;
+}
+
+.basket-item-name {
+    font-weight: bold;
+    color: #4F6367;
+    margin-bottom: 5px;
+}
+
+.basket-item-quantity {
+    color: #666;
+    font-size: 0.9em;
+}
+
+.basket-item-source {
+    color: #7A9E9F;
+    font-size: 0.8em;
+    font-style: italic;
+    margin-top: 2px;
+}
+
+.basket-item-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.edit-item-btn {
+    background-color: #7A9E9F;
+    color: white;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+.edit-item-btn:hover {
+    background-color: #4F6367;
+}
+
+.delete-item-btn {
+    background-color: #FE5F55;
+    color: white;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+.delete-item-btn:hover {
+    background-color: #e54b42;
+}
+
+.empty-basket {
+    padding: 40px;
+    text-align: center;
+    color: #666;
+    font-style: italic;
 }
 
 /* Schedule Page Styles */
@@ -799,6 +1067,24 @@ button[onclick*="remove"]:hover {
         margin: 2% auto;
     }
     
+    .basket-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .date-range-control {
+        justify-content: center;
+    }
+    
+    .manual-add-form {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .basket-info {
+        flex-direction: column;
+    }
+    
     h1 {
         font-size: 2em;
     }
@@ -811,6 +1097,10 @@ button[onclick*="remove"]:hover {
     
     .schedule-table {
         font-size: 0.95em;
+    }
+    
+    .manual-add-form {
+        grid-template-columns: 2fr 1fr 1fr auto;
     }
 }
 

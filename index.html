@@ -25,6 +25,31 @@
         </div>
     </div>
 
+    <!-- Sync Modal -->
+    <div id="syncModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>GitHub Sync Settings</h3>
+                <span class="close" onclick="closeSyncModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="sync-setup">
+                    <label for="githubToken">GitHub Personal Access Token:</label>
+                    <input type="password" id="githubToken" placeholder="Enter your GitHub token (ghp_...)" class="token-input">
+                    <small class="token-help">Paste your GitHub Personal Access Token here. This will be saved securely on this device.</small>
+                    
+                    <div class="sync-actions">
+                        <button onclick="saveToken()" class="save-token-btn">Save Token</button>
+                        <button onclick="syncToGitHub()" class="sync-btn" disabled id="syncToBtn">📤 Sync to GitHub</button>
+                        <button onclick="loadFromGitHub()" class="sync-btn" disabled id="loadFromBtn">📥 Load from GitHub</button>
+                    </div>
+                    
+                    <div id="syncStatus" class="sync-status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Top Navigation -->
     <nav class="top-nav">
         <div class="nav-brand">My Cookbook</div>
@@ -34,6 +59,7 @@
             <li><a href="#" onclick="showSchedule()" id="schedule-link">Schedule</a></li>
             <li><a href="#" onclick="showAddRecipe()" id="add-link">Add New Recipe</a></li>
             <li><a href="#" onclick="showBasket()" id="basket-link" class="basket-link">🛒 <span id="basketCount">0</span></a></li>
+            <li><a href="#" onclick="showSyncModal()" id="sync-link" class="sync-link">🔄 Sync</a></li>
         </ul>
     </nav>
 

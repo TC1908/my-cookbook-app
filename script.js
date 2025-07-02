@@ -5,13 +5,18 @@ let currentRecipe = null;
 let mealPlans = {}; // Store meal plans by date-meal key
 let currentWeekOffset = 0; // 0 = current weeks, -1 = previous, 1 = next
 let selectedMealSlot = null; // For modal recipe selection
+let basketItems = []; // Shopping basket items
+let basketPeriod = { start: null, end: null }; // Current basket period
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
     loadRecipes();
     loadMealPlans();
+    loadBasket();
     updateCategoryGrid();
     updateFilters();
+    initializeDateInputs();
+    updateBasketCount();
     
     // Setup form submission
     document.getElementById('recipeForm').addEventListener('submit', handleRecipeSubmit);
@@ -19,6 +24,34 @@ document.addEventListener('DOMContentLoaded', function() {
     // Setup image preview
     document.getElementById('recipeImages').addEventListener('change', handleImagePreview);
 });
+
+// Initialize date inputs with current week
+function initializeDateInputs() {
+    const today = new Date();
+    const monday = new Date(today);
+    const daysSinceMonday = (today.getDay() + 6) % 7;
+    monday.setDate(today.getDate() - daysSinceMonday);
+    
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    
+    document.getElementById('basketStartDate').value = formatDateForInput(monday);
+    document.getElementById('basketEndDate').value = formatDateForInput(sunday);
+}
+
+function formatDateForInput(date) {
+    return date.toISOString().split('T')[0];
+}
+
+function updateBasketEndDate() {
+    const startDate = document.getElementById('basketStartDate').value;
+    if (startDate) {
+        const start = new Date(startDate);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6); // Default to 1 week
+        document.getElementById('basketEndDate').value = formatDateForInput(end);
+    }
+}
 
 // Navigation functions
 function showHome() {
@@ -46,6 +79,12 @@ function showAddRecipe() {
     resetForm();
 }
 
+function showBasket() {
+    showPage('basket-page');
+    updateActiveNavLink('basket-link');
+    displayBasket();
+}
+
 function showPage(pageId) {
     // Hide all pages
     document.querySelectorAll('.page').forEach(page => {
@@ -62,6 +101,196 @@ function updateActiveNavLink(activeLinkId) {
     });
     // Add active class to current link
     document.getElementById(activeLinkId).classList.add('active');
+}
+
+// Basket functions
+function addToBasket() {
+    const startDate = document.getElementById('basketStartDate').value;
+    const endDate = document.getElementById('basketEndDate').value;
+    
+    if (!startDate || !endDate) {
+        alert('Please select both start and end dates.');
+        return;
+    }
+    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    if (start > end) {
+        alert('Start date must be before end date.');
+        return;
+    }
+    
+    // Store basket period
+    basketPeriod = { 
+        start: startDate, 
+        end: endDate,
+        startFormatted: formatDateDisplay(start),
+        endFormatted: formatDateDisplay(end)
+    };
+    
+    // Clear existing basket
+    basketItems = [];
+    
+    // Collect ingredients from meal plans in date range
+    const ingredientMap = new Map();
+    
+    for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+        const dateKey = formatDateKey(date);
+        
+        // Check each meal type
+        ['breakfast', 'lunch', 'dinner'].forEach(mealType => {
+            const mealKey = `${dateKey}-${mealType}`;
+            const mealPlan = mealPlans[mealKey];
+            
+            if (mealPlan) {
+                const recipe = recipes.find(r => r.id === mealPlan.recipeId);
+                if (recipe) {
+                    recipe.ingredients.forEach(ingredient => {
+                        const key = `${ingredient.name.toLowerCase()}-${ingredient.unit.toLowerCase()}`;
+                        
+                        if (ingredientMap.has(key)) {
+                            const existing = ingredientMap.get(key);
+                            const currentQuantity = parseQuantity(existing.quantity);
+                            const newQuantity = parseQuantity(ingredient.quantity);
+                            existing.quantity = formatQuantity(currentQuantity + newQuantity);
+                            existing.sources.add(`${recipe.title} (${formatDateDisplay(date)} ${mealType})`);
+                        } else {
+                            ingredientMap.set(key, {
+                                name: ingredient.name,
+                                quantity: ingredient.quantity,
+                                unit: ingredient.unit,
+                                sources: new Set([`${recipe.title} (${formatDateDisplay(date)} ${mealType})`]),
+                                id: Date.now() + Math.random()
+                            });
+                        }
+                    });
+                }
+            }
+        });
+    }
+    
+    // Convert map to basket items
+    basketItems = Array.from(ingredientMap.values()).map(item => ({
+        ...item,
+        sources: Array.from(item.sources)
+    }));
+    
+    saveBasket();
+    updateBasketCount();
+    showSuccessMessage(`Added ${basketItems.length} items to basket for ${basketPeriod.startFormatted} - ${basketPeriod.endFormatted}`);
+    showBasket();
+}
+
+function addManualItem() {
+    const name = document.getElementById('manualItemName').value.trim();
+    const quantity = document.getElementById('manualItemQuantity').value.trim();
+    const unit = document.getElementById('manualItemUnit').value.trim();
+    
+    if (!name) {
+        alert('Please enter an item name.');
+        return;
+    }
+    
+    const newItem = {
+        id: Date.now() + Math.random(),
+        name: name,
+        quantity: quantity || '1',
+        unit: unit || '',
+        sources: ['Added manually']
+    };
+    
+    basketItems.push(newItem);
+    saveBasket();
+    updateBasketCount();
+    
+    // Clear form
+    document.getElementById('manualItemName').value = '';
+    document.getElementById('manualItemQuantity').value = '';
+    document.getElementById('manualItemUnit').value = '';
+    
+    displayBasket();
+    showSuccessMessage('Item added to basket!');
+}
+
+function editBasketItem(itemId) {
+    const item = basketItems.find(i => i.id === itemId);
+    if (!item) return;
+    
+    const newQuantity = prompt('Edit quantity:', item.quantity);
+    if (newQuantity !== null) {
+        item.quantity = newQuantity.trim();
+        saveBasket();
+        displayBasket();
+    }
+}
+
+function deleteBasketItem(itemId) {
+    basketItems = basketItems.filter(i => i.id !== itemId);
+    saveBasket();
+    updateBasketCount();
+    displayBasket();
+}
+
+function clearBasket() {
+    if (confirm('Are you sure you want to clear the entire basket?')) {
+        basketItems = [];
+        basketPeriod = { start: null, end: null };
+        saveBasket();
+        updateBasketCount();
+        displayBasket();
+        showSuccessMessage('Basket cleared!');
+    }
+}
+
+function displayBasket() {
+    const basketItemsContainer = document.getElementById('basketItems');
+    const basketPeriodInfo = document.getElementById('basketPeriodInfo');
+    
+    // Update period info
+    if (basketPeriod.start && basketPeriod.end) {
+        basketPeriodInfo.textContent = `Shopping for: ${basketPeriod.startFormatted} to ${basketPeriod.endFormatted}`;
+    } else {
+        basketPeriodInfo.textContent = 'No shopping period selected';
+    }
+    
+    // Update items display
+    if (basketItems.length === 0) {
+        basketItemsContainer.innerHTML = `
+            <div class="basket-items">
+                <h3>Shopping List</h3>
+                <div class="empty-basket">
+                    Your basket is empty. Add recipes from the schedule or add items manually.
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    basketItemsContainer.innerHTML = `
+        <div class="basket-items">
+            <h3>Shopping List (${basketItems.length} items)</h3>
+            <div class="basket-list">
+                ${basketItems.map(item => `
+                    <div class="basket-item">
+                        <div class="basket-item-info">
+                            <div class="basket-item-name">${item.name}</div>
+                            <div class="basket-item-quantity">${item.quantity} ${item.unit}</div>
+                            <div class="basket-item-source">From: ${item.sources.join(', ')}</div>
+                        </div>
+                        <div class="basket-item-actions">
+                            <button class="edit-item-btn" onclick="editBasketItem(${item.id})">Edit</button>
+                            <button class="delete-item-btn" onclick="deleteBasketItem(${item.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function updateBasketCount() {
+    document.getElementById('basketCount').textContent = basketItems.length;
 }
 
 // Schedule functions
@@ -816,6 +1045,22 @@ function loadMealPlans() {
     const stored = localStorage.getItem('cookbook-meal-plans');
     if (stored) {
         mealPlans = JSON.parse(stored);
+    }
+}
+
+function saveBasket() {
+    localStorage.setItem('cookbook-basket', JSON.stringify({ 
+        items: basketItems, 
+        period: basketPeriod 
+    }));
+}
+
+function loadBasket() {
+    const stored = localStorage.getItem('cookbook-basket');
+    if (stored) {
+        const basket = JSON.parse(stored);
+        basketItems = basket.items || [];
+        basketPeriod = basket.period || { start: null, end: null };
     }
 }
 

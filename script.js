@@ -7,16 +7,20 @@ let currentWeekOffset = 0; // 0 = current weeks, -1 = previous, 1 = next
 let selectedMealSlot = null; // For modal recipe selection
 let basketItems = []; // Shopping basket items
 let basketPeriod = { start: null, end: null }; // Current basket period
+let githubToken = null; // GitHub access token
+let gistId = null; // GitHub Gist ID for storage
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
     loadRecipes();
     loadMealPlans();
     loadBasket();
+    loadGitHubConfig();
     updateCategoryGrid();
     updateFilters();
     initializeDateInputs();
     updateBasketCount();
+    updateSyncButtons();
     
     // Setup form submission
     document.getElementById('recipeForm').addEventListener('submit', handleRecipeSubmit);
@@ -24,6 +28,223 @@ document.addEventListener('DOMContentLoaded', function() {
     // Setup image preview
     document.getElementById('recipeImages').addEventListener('change', handleImagePreview);
 });
+
+// GitHub Sync Functions
+function showSyncModal() {
+    const modal = document.getElementById('syncModal');
+    const tokenInput = document.getElementById('githubToken');
+    
+    // Pre-fill token if exists
+    if (githubToken) {
+        tokenInput.value = githubToken;
+    }
+    
+    updateSyncButtons();
+    modal.style.display = 'block';
+}
+
+function closeSyncModal() {
+    document.getElementById('syncModal').style.display = 'none';
+    clearSyncStatus();
+}
+
+function saveToken() {
+    const token = document.getElementById('githubToken').value.trim();
+    
+    if (!token) {
+        showSyncStatus('Please enter your GitHub token', 'error');
+        return;
+    }
+    
+    if (!token.startsWith('ghp_')) {
+        showSyncStatus('Token should start with "ghp_"', 'error');
+        return;
+    }
+    
+    githubToken = token;
+    localStorage.setItem('cookbook-github-token', token);
+    updateSyncButtons();
+    showSyncStatus('Token saved successfully! You can now sync your data.', 'success');
+}
+
+function updateSyncButtons() {
+    const hasToken = !!githubToken;
+    document.getElementById('syncToBtn').disabled = !hasToken;
+    document.getElementById('loadFromBtn').disabled = !hasToken;
+}
+
+async function syncToGitHub() {
+    if (!githubToken) {
+        showSyncStatus('Please save your GitHub token first', 'error');
+        return;
+    }
+    
+    showSyncStatus('Syncing data to GitHub...', 'loading');
+    
+    try {
+        const data = {
+            recipes: recipes,
+            mealPlans: mealPlans,
+            basketItems: basketItems,
+            basketPeriod: basketPeriod,
+            lastSync: new Date().toISOString()
+        };
+        
+        const gistData = {
+            description: "Virtual Cookbook Data",
+            public: false,
+            files: {
+                "cookbook-data.json": {
+                    content: JSON.stringify(data, null, 2)
+                }
+            }
+        };
+        
+        let response;
+        let url = 'https://api.github.com/gists';
+        let method = 'POST';
+        
+        // If we have an existing gist, update it
+        if (gistId) {
+            url = `https://api.github.com/gists/${gistId}`;
+            method = 'PATCH';
+        }
+        
+        response = await fetch(url, {
+            method: method,
+            headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(gistData)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`GitHub API error: ${response.status}`);
+        }
+        
+        const gist = await response.json();
+        gistId = gist.id;
+        localStorage.setItem('cookbook-gist-id', gistId);
+        
+        showSyncStatus(`Successfully synced ${recipes.length} recipes, ${Object.keys(mealPlans).length} meal plans, and ${basketItems.length} basket items to GitHub!`, 'success');
+        
+    } catch (error) {
+        console.error('Sync error:', error);
+        showSyncStatus(`Sync failed: ${error.message}`, 'error');
+    }
+}
+
+async function loadFromGitHub() {
+    if (!githubToken) {
+        showSyncStatus('Please save your GitHub token first', 'error');
+        return;
+    }
+    
+    showSyncStatus('Loading data from GitHub...', 'loading');
+    
+    try {
+        // First, try to find existing gist
+        if (!gistId) {
+            // Search for our gist
+            const gistsResponse = await fetch('https://api.github.com/gists', {
+                headers: {
+                    'Authorization': `token ${githubToken}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+            
+            if (!gistsResponse.ok) {
+                throw new Error(`GitHub API error: ${gistsResponse.status}`);
+            }
+            
+            const gists = await gistsResponse.json();
+            const cookbookGist = gists.find(g => 
+                g.description === "Virtual Cookbook Data" && 
+                g.files["cookbook-data.json"]
+            );
+            
+            if (cookbookGist) {
+                gistId = cookbookGist.id;
+                localStorage.setItem('cookbook-gist-id', gistId);
+            } else {
+                throw new Error('No cookbook data found on GitHub. Please sync from a device that has data first.');
+            }
+        }
+        
+        // Load the gist data
+        const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+            headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`GitHub API error: ${response.status}`);
+        }
+        
+        const gist = await response.json();
+        const fileContent = gist.files["cookbook-data.json"]?.content;
+        
+        if (!fileContent) {
+            throw new Error('No cookbook data found in the gist');
+        }
+        
+        const data = JSON.parse(fileContent);
+        
+        // Update local data
+        recipes = data.recipes || [];
+        mealPlans = data.mealPlans || {};
+        basketItems = data.basketItems || [];
+        basketPeriod = data.basketPeriod || { start: null, end: null };
+        
+        // Save to local storage
+        saveRecipes();
+        saveMealPlans();
+        saveBasket();
+        
+        // Update UI
+        updateCategoryGrid();
+        updateFilters();
+        updateBasketCount();
+        
+        // Refresh current page
+        const currentPage = document.querySelector('.page.active').id;
+        if (currentPage === 'all-recipes-page') {
+            displayRecipes();
+        } else if (currentPage === 'schedule-page') {
+            generateSchedule();
+        } else if (currentPage === 'basket-page') {
+            displayBasket();
+        }
+        
+        const syncTime = data.lastSync ? new Date(data.lastSync).toLocaleString() : 'Unknown';
+        showSyncStatus(`Successfully loaded ${recipes.length} recipes, ${Object.keys(mealPlans).length} meal plans, and ${basketItems.length} basket items from GitHub! (Last sync: ${syncTime})`, 'success');
+        
+    } catch (error) {
+        console.error('Load error:', error);
+        showSyncStatus(`Load failed: ${error.message}`, 'error');
+    }
+}
+
+function showSyncStatus(message, type) {
+    const status = document.getElementById('syncStatus');
+    status.textContent = message;
+    status.className = `sync-status ${type}`;
+}
+
+function clearSyncStatus() {
+    const status = document.getElementById('syncStatus');
+    status.textContent = '';
+    status.className = 'sync-status';
+}
+
+function loadGitHubConfig() {
+    githubToken = localStorage.getItem('cookbook-github-token');
+    gistId = localStorage.getItem('cookbook-gist-id');
+}
 
 // Initialize date inputs with current week
 function initializeDateInputs() {
@@ -1066,8 +1287,12 @@ function loadBasket() {
 
 // Close modal when clicking outside
 window.onclick = function(event) {
-    const modal = document.getElementById('recipeModal');
-    if (event.target === modal) {
+    const recipeModal = document.getElementById('recipeModal');
+    const syncModal = document.getElementById('syncModal');
+    
+    if (event.target === recipeModal) {
         closeRecipeModal();
+    } else if (event.target === syncModal) {
+        closeSyncModal();
     }
 }

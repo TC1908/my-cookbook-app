@@ -33,6 +33,7 @@
             <li><a href="#" onclick="showAllRecipes()" id="recipes-link">All Recipes</a></li>
             <li><a href="#" onclick="showSchedule()" id="schedule-link">Schedule</a></li>
             <li><a href="#" onclick="showAddRecipe()" id="add-link">Add New Recipe</a></li>
+            <li><a href="#" onclick="showBasket()" id="basket-link" class="basket-link">🛒 <span id="basketCount">0</span></a></li>
         </ul>
     </nav>
 
@@ -66,6 +67,20 @@
                 <button onclick="currentWeeks()" class="week-nav-btn current">Current 2 Weeks</button>
                 <button onclick="nextWeeks()" class="week-nav-btn">Next 2 Weeks →</button>
             </div>
+
+            <!-- Add to Basket Section -->
+            <div class="basket-controls">
+                <div class="date-range-control">
+                    <label>Shopping Period:</label>
+                    <div class="date-inputs">
+                        <input type="date" id="basketStartDate" onchange="updateBasketEndDate()">
+                        <span>to</span>
+                        <input type="date" id="basketEndDate">
+                    </div>
+                </div>
+                <button onclick="addToBasket()" class="add-to-basket-btn">🛒 Add to Basket</button>
+            </div>
+
             <div class="schedule-container">
                 <table class="schedule-table" id="scheduleTable">
                     <thead>
@@ -84,6 +99,32 @@
                         <!-- Schedule will be generated here -->
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Basket Page -->
+        <div id="basket-page" class="page">
+            <h1>Shopping Basket</h1>
+            
+            <div class="basket-info">
+                <div id="basketPeriodInfo" class="basket-period"></div>
+                <button onclick="clearBasket()" class="clear-basket-btn">Clear All</button>
+            </div>
+
+            <div class="basket-content">
+                <div class="manual-add-section">
+                    <h3>Add Item Manually</h3>
+                    <div class="manual-add-form">
+                        <input type="text" id="manualItemName" placeholder="Item name" class="manual-input">
+                        <input type="text" id="manualItemQuantity" placeholder="Quantity" class="manual-input">
+                        <input type="text" id="manualItemUnit" placeholder="Unit" class="manual-input">
+                        <button onclick="addManualItem()" class="add-manual-btn">Add Item</button>
+                    </div>
+                </div>
+
+                <div class="basket-items" id="basketItems">
+                    <!-- Basket items will be populated here -->
+                </div>
             </div>
         </div>
 

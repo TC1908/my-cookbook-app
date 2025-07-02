@@ -2,10 +2,14 @@
 let recipes = [];
 let currentRecipeId = null;
 let currentRecipe = null;
+let mealPlans = {}; // Store meal plans by date-meal key
+let currentWeekOffset = 0; // 0 = current weeks, -1 = previous, 1 = next
+let selectedMealSlot = null; // For modal recipe selection
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
     loadRecipes();
+    loadMealPlans();
     updateCategoryGrid();
     updateFilters();
     
@@ -30,6 +34,12 @@ function showAllRecipes() {
     updateFilters();
 }
 
+function showSchedule() {
+    showPage('schedule-page');
+    updateActiveNavLink('schedule-link');
+    generateSchedule();
+}
+
 function showAddRecipe() {
     showPage('add-recipe-page');
     updateActiveNavLink('add-link');
@@ -52,6 +62,201 @@ function updateActiveNavLink(activeLinkId) {
     });
     // Add active class to current link
     document.getElementById(activeLinkId).classList.add('active');
+}
+
+// Schedule functions
+function generateSchedule() {
+    const today = new Date();
+    const monday = new Date(today);
+    
+    // Get Monday of current week + offset
+    const daysSinceMonday = (today.getDay() + 6) % 7; // Convert Sunday=0 to Monday=0
+    monday.setDate(today.getDate() - daysSinceMonday + (currentWeekOffset * 14));
+    
+    const scheduleBody = document.getElementById('scheduleBody');
+    scheduleBody.innerHTML = '';
+    
+    // Generate two weeks
+    for (let week = 0; week < 2; week++) {
+        const row = document.createElement('tr');
+        
+        // Week label
+        const weekCell = document.createElement('td');
+        weekCell.className = 'week-header';
+        weekCell.textContent = `Week ${week + 1}`;
+        row.appendChild(weekCell);
+        
+        // Generate days for this week
+        for (let day = 0; day < 7; day++) {
+            const currentDate = new Date(monday);
+            currentDate.setDate(monday.getDate() + (week * 7) + day);
+            
+            const dayCell = document.createElement('td');
+            dayCell.innerHTML = generateDayCell(currentDate);
+            row.appendChild(dayCell);
+        }
+        
+        scheduleBody.appendChild(row);
+    }
+}
+
+function generateDayCell(date) {
+    const dateStr = formatDateKey(date);
+    const dayStr = formatDateDisplay(date);
+    
+    return `
+        <div class="day-cell">
+            <div class="date-header">${dayStr}</div>
+            <div class="meals-container">
+                ${generateMealSlot(dateStr, 'breakfast', 'Breakfast')}
+                ${generateMealSlot(dateStr, 'lunch', 'Lunch')}
+                ${generateMealSlot(dateStr, 'dinner', 'Dinner')}
+            </div>
+        </div>
+    `;
+}
+
+function generateMealSlot(dateStr, mealType, mealLabel) {
+    const mealKey = `${dateStr}-${mealType}`;
+    const mealPlan = mealPlans[mealKey];
+    
+    if (mealPlan) {
+        return `
+            <div class="meal-slot has-recipe" onclick="openRecipeModal('${mealKey}')">
+                <div class="meal-label">${mealLabel}</div>
+                <div class="meal-recipe">${mealPlan.recipeName}</div>
+                <button class="remove-meal" onclick="removeMeal('${mealKey}', event)">×</button>
+            </div>
+        `;
+    } else {
+        return `
+            <div class="meal-slot empty" onclick="openRecipeModal('${mealKey}')">
+                <div class="meal-label">${mealLabel}</div>
+                <div class="meal-recipe">Click to add</div>
+            </div>
+        `;
+    }
+}
+
+function formatDateKey(date) {
+    return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+}
+
+function formatDateDisplay(date) {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    return `${day}/${month}`;
+}
+
+// Week navigation
+function previousWeeks() {
+    currentWeekOffset--;
+    generateSchedule();
+    updateWeekNavButtons();
+}
+
+function currentWeeks() {
+    currentWeekOffset = 0;
+    generateSchedule();
+    updateWeekNavButtons();
+}
+
+function nextWeeks() {
+    currentWeekOffset++;
+    generateSchedule();
+    updateWeekNavButtons();
+}
+
+function updateWeekNavButtons() {
+    document.querySelectorAll('.week-nav-btn').forEach(btn => {
+        btn.classList.remove('current');
+    });
+    
+    if (currentWeekOffset === 0) {
+        document.querySelector('.week-nav-btn:nth-child(2)').classList.add('current');
+    }
+}
+
+// Modal functions
+function openRecipeModal(mealKey) {
+    selectedMealSlot = mealKey;
+    populateModalRecipes();
+    document.getElementById('recipeModal').style.display = 'block';
+}
+
+function closeRecipeModal() {
+    document.getElementById('recipeModal').style.display = 'none';
+    selectedMealSlot = null;
+}
+
+function populateModalRecipes() {
+    const modalList = document.getElementById('modalRecipeList');
+    modalList.innerHTML = '';
+    
+    if (recipes.length === 0) {
+        modalList.innerHTML = '<p style="text-align: center; color: #666;">No recipes available. Add some recipes first!</p>';
+        return;
+    }
+    
+    recipes.forEach(recipe => {
+        const item = document.createElement('div');
+        item.className = 'modal-recipe-item';
+        item.onclick = () => selectRecipe(recipe);
+        
+        const imageHtml = recipe.images && recipe.images.length > 0 
+            ? `<img src="${recipe.images[0]}" alt="${recipe.title}">` 
+            : '<div style="width: 60px; height: 60px; background: #B8D8D8; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #4F6367;">No Image</div>';
+        
+        item.innerHTML = `
+            ${imageHtml}
+            <div class="modal-recipe-info">
+                <div class="modal-recipe-title">${recipe.title}</div>
+                <div class="modal-recipe-meta">
+                    ${formatCookingTime(recipe.cookingTime)} • For ${recipe.servings} people
+                    ${recipe.categories.length > 0 ? ' • ' + recipe.categories.slice(0, 2).join(', ') : ''}
+                </div>
+            </div>
+        `;
+        
+        modalList.appendChild(item);
+    });
+}
+
+function filterModalRecipes() {
+    const searchTerm = document.getElementById('recipeSearch').value.toLowerCase();
+    const items = document.querySelectorAll('.modal-recipe-item');
+    
+    items.forEach(item => {
+        const title = item.querySelector('.modal-recipe-title').textContent.toLowerCase();
+        const meta = item.querySelector('.modal-recipe-meta').textContent.toLowerCase();
+        
+        if (title.includes(searchTerm) || meta.includes(searchTerm)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+function selectRecipe(recipe) {
+    if (!selectedMealSlot) return;
+    
+    mealPlans[selectedMealSlot] = {
+        recipeId: recipe.id,
+        recipeName: recipe.title
+    };
+    
+    saveMealPlans();
+    generateSchedule();
+    closeRecipeModal();
+    showSuccessMessage(`${recipe.title} added to meal plan!`);
+}
+
+function removeMeal(mealKey, event) {
+    event.stopPropagation();
+    delete mealPlans[mealKey];
+    saveMealPlans();
+    generateSchedule();
 }
 
 // Recipe management functions
@@ -84,7 +289,7 @@ async function handleRecipeSubmit(e) {
 function getRecipeImages() {
     return new Promise((resolve) => {
         const fileInput = document.getElementById('recipeImages');
-        const files = Array.from(fileInput.files).slice(0, 5); // Limit to 5 images
+        const files = Array.from(fileInput.files).slice(0, 5);
         const imageData = [];
         
         if (files.length === 0) {
@@ -113,19 +318,16 @@ function getRecipeImages() {
 function parseQuantity(quantityString) {
     if (!quantityString || quantityString.trim() === '') return 0;
     
-    // Handle fractions like 1/2, 3/4, etc.
     const fractionMatch = quantityString.match(/(\d+)\/(\d+)/);
     if (fractionMatch) {
         return parseFloat(fractionMatch[1]) / parseFloat(fractionMatch[2]);
     }
     
-    // Handle mixed numbers like 1 1/2
     const mixedMatch = quantityString.match(/(\d+)\s+(\d+)\/(\d+)/);
     if (mixedMatch) {
         return parseFloat(mixedMatch[1]) + (parseFloat(mixedMatch[2]) / parseFloat(mixedMatch[3]));
     }
     
-    // Handle decimals and regular numbers
     const number = parseFloat(quantityString);
     return isNaN(number) ? 0 : number;
 }
@@ -133,12 +335,10 @@ function parseQuantity(quantityString) {
 function formatQuantity(quantity) {
     if (quantity === 0) return '0';
     
-    // Handle very small numbers
     if (quantity < 0.1) {
         return quantity.toPrecision(2);
     }
     
-    // Handle fractions nicely
     const commonFractions = {
         0.25: '1/4',
         0.33: '1/3',
@@ -150,19 +350,16 @@ function formatQuantity(quantity) {
     const whole = Math.floor(quantity);
     const fraction = quantity - whole;
     
-    // Check if the fractional part matches a common fraction
     for (const [decimal, frac] of Object.entries(commonFractions)) {
         if (Math.abs(fraction - parseFloat(decimal)) < 0.05) {
             return whole > 0 ? `${whole} ${frac}` : frac;
         }
     }
     
-    // If it's close to a whole number, round it
     if (Math.abs(quantity - Math.round(quantity)) < 0.1) {
         return Math.round(quantity).toString();
     }
     
-    // Otherwise show one decimal place
     return quantity.toFixed(1);
 }
 
@@ -190,7 +387,6 @@ function updateServingSize() {
         newServings
     );
     
-    // Update the ingredients display
     const ingredientsList = document.querySelector('#recipeDetailContent ul');
     if (ingredientsList) {
         ingredientsList.innerHTML = scaledIngredients.map(ing => 
@@ -226,9 +422,20 @@ function deleteRecipe(recipeId, event) {
         saveRecipes();
         showSuccessMessage('Recipe deleted successfully!');
         
+        // Remove from meal plans
+        Object.keys(mealPlans).forEach(key => {
+            if (mealPlans[key].recipeId === recipeId) {
+                delete mealPlans[key];
+            }
+        });
+        saveMealPlans();
+        
         displayRecipes();
         updateCategoryGrid();
         updateFilters();
+        if (document.getElementById('schedule-page').classList.contains('active')) {
+            generateSchedule();
+        }
     }
 }
 
@@ -360,7 +567,7 @@ function handleImagePreview(e) {
 function resetForm() {
     document.getElementById('recipeForm').reset();
     document.getElementById('imagePreview').innerHTML = '';
-    document.getElementById('servingSize').value = '4'; // Reset to default
+    document.getElementById('servingSize').value = '4';
     
     document.getElementById('ingredientsList').innerHTML = `
         <div class="ingredient-row">
@@ -501,7 +708,7 @@ function showRecipeDetail(recipeId) {
     const recipe = recipes.find(r => r.id === recipeId);
     if (!recipe) return;
     
-    currentRecipe = recipe; // Store current recipe for scaling
+    currentRecipe = recipe;
     
     const imageGalleryHtml = recipe.images && recipe.images.length > 0 
         ? `<div style="margin-bottom: 20px;">
@@ -563,6 +770,15 @@ function deleteRecipeFromDetail(recipeId) {
     if (confirm(`Are you sure you want to delete "${recipe.title}"? This cannot be undone.`)) {
         recipes = recipes.filter(r => r.id !== recipeId);
         saveRecipes();
+        
+        // Remove from meal plans
+        Object.keys(mealPlans).forEach(key => {
+            if (mealPlans[key].recipeId === recipeId) {
+                delete mealPlans[key];
+            }
+        });
+        saveMealPlans();
+        
         showSuccessMessage('Recipe deleted successfully!');
         showAllRecipes();
         updateCategoryGrid();
@@ -583,12 +799,30 @@ function loadRecipes() {
     const stored = localStorage.getItem('cookbook-recipes');
     if (stored) {
         recipes = JSON.parse(stored);
-        // Add default serving size for existing recipes that don't have it
         recipes.forEach(recipe => {
             if (!recipe.servings) {
-                recipe.servings = 4; // Default to 4 people
+                recipe.servings = 4;
             }
         });
-        saveRecipes(); // Save the updated recipes
+        saveRecipes();
+    }
+}
+
+function saveMealPlans() {
+    localStorage.setItem('cookbook-meal-plans', JSON.stringify(mealPlans));
+}
+
+function loadMealPlans() {
+    const stored = localStorage.getItem('cookbook-meal-plans');
+    if (stored) {
+        mealPlans = JSON.parse(stored);
+    }
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modal = document.getElementById('recipeModal');
+    if (event.target === modal) {
+        closeRecipeModal();
     }
 }

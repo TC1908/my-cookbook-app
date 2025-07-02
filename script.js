@@ -1,6 +1,7 @@
 // Global variables
 let recipes = [];
 let currentRecipeId = null;
+let currentRecipe = null;
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -63,12 +64,13 @@ async function handleRecipeSubmit(e) {
     const recipe = {
         id: Date.now().toString(),
         title: document.getElementById('recipeTitle').value,
+        servings: parseInt(document.getElementById('servingSize').value),
         ingredients: getIngredients(),
         steps: getSteps(),
         categories: document.getElementById('recipeCategories').value.split(',').map(cat => cat.trim()).filter(cat => cat),
         cookingTime: getCookingTime(),
         comments: document.getElementById('recipeComments').value,
-        images: images, // Now properly storing images
+        images: images,
         dateCreated: new Date().toISOString()
     };
     
@@ -95,7 +97,7 @@ function getRecipeImages() {
         files.forEach(file => {
             const reader = new FileReader();
             reader.onload = function(e) {
-                imageData.push(e.target.result); // Store as base64 data URL
+                imageData.push(e.target.result);
                 processedFiles++;
                 
                 if (processedFiles === files.length) {
@@ -107,8 +109,114 @@ function getRecipeImages() {
     });
 }
 
+// Ingredient scaling functions
+function parseQuantity(quantityString) {
+    if (!quantityString || quantityString.trim() === '') return 0;
+    
+    // Handle fractions like 1/2, 3/4, etc.
+    const fractionMatch = quantityString.match(/(\d+)\/(\d+)/);
+    if (fractionMatch) {
+        return parseFloat(fractionMatch[1]) / parseFloat(fractionMatch[2]);
+    }
+    
+    // Handle mixed numbers like 1 1/2
+    const mixedMatch = quantityString.match(/(\d+)\s+(\d+)\/(\d+)/);
+    if (mixedMatch) {
+        return parseFloat(mixedMatch[1]) + (parseFloat(mixedMatch[2]) / parseFloat(mixedMatch[3]));
+    }
+    
+    // Handle decimals and regular numbers
+    const number = parseFloat(quantityString);
+    return isNaN(number) ? 0 : number;
+}
+
+function formatQuantity(quantity) {
+    if (quantity === 0) return '0';
+    
+    // Handle very small numbers
+    if (quantity < 0.1) {
+        return quantity.toPrecision(2);
+    }
+    
+    // Handle fractions nicely
+    const commonFractions = {
+        0.25: '1/4',
+        0.33: '1/3',
+        0.5: '1/2',
+        0.67: '2/3',
+        0.75: '3/4'
+    };
+    
+    const whole = Math.floor(quantity);
+    const fraction = quantity - whole;
+    
+    // Check if the fractional part matches a common fraction
+    for (const [decimal, frac] of Object.entries(commonFractions)) {
+        if (Math.abs(fraction - parseFloat(decimal)) < 0.05) {
+            return whole > 0 ? `${whole} ${frac}` : frac;
+        }
+    }
+    
+    // If it's close to a whole number, round it
+    if (Math.abs(quantity - Math.round(quantity)) < 0.1) {
+        return Math.round(quantity).toString();
+    }
+    
+    // Otherwise show one decimal place
+    return quantity.toFixed(1);
+}
+
+function scaleIngredients(ingredients, originalServings, newServings) {
+    const scaleFactor = newServings / originalServings;
+    
+    return ingredients.map(ingredient => {
+        const originalQuantity = parseQuantity(ingredient.quantity);
+        const newQuantity = originalQuantity * scaleFactor;
+        
+        return {
+            ...ingredient,
+            quantity: formatQuantity(newQuantity)
+        };
+    });
+}
+
+function updateServingSize() {
+    const newServings = parseInt(document.getElementById('currentServings').value);
+    if (!currentRecipe || newServings <= 0) return;
+    
+    const scaledIngredients = scaleIngredients(
+        currentRecipe.ingredients,
+        currentRecipe.servings,
+        newServings
+    );
+    
+    // Update the ingredients display
+    const ingredientsList = document.querySelector('#recipeDetailContent ul');
+    if (ingredientsList) {
+        ingredientsList.innerHTML = scaledIngredients.map(ing => 
+            `<li>${ing.quantity} ${ing.unit} ${ing.name}</li>`
+        ).join('');
+    }
+}
+
+function increaseServings() {
+    const currentInput = document.getElementById('currentServings');
+    const currentValue = parseInt(currentInput.value);
+    currentInput.value = currentValue + 1;
+    updateServingSize();
+}
+
+function decreaseServings() {
+    const currentInput = document.getElementById('currentServings');
+    const currentValue = parseInt(currentInput.value);
+    if (currentValue > 1) {
+        currentInput.value = currentValue - 1;
+        updateServingSize();
+    }
+}
+
 function deleteRecipe(recipeId, event) {
-    event.stopPropagation(); // Prevent card click
+    event.stopPropagation();
     
     const recipe = recipes.find(r => r.id === recipeId);
     if (!recipe) return;
@@ -118,7 +226,6 @@ function deleteRecipe(recipeId, event) {
         saveRecipes();
         showSuccessMessage('Recipe deleted successfully!');
         
-        // Update displays
         displayRecipes();
         updateCategoryGrid();
         updateFilters();
@@ -126,20 +233,16 @@ function deleteRecipe(recipeId, event) {
 }
 
 function showSuccessMessage(message) {
-    // Remove any existing messages
     const existingMessages = document.querySelectorAll('.message');
     existingMessages.forEach(msg => msg.remove());
     
-    // Create new message
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message success';
     messageDiv.textContent = message;
     
-    // Insert at the top of main content
     const mainContent = document.querySelector('.main-content');
     mainContent.insertBefore(messageDiv, mainContent.firstChild);
     
-    // Remove after 3 seconds
     setTimeout(() => {
         messageDiv.remove();
     }, 3000);
@@ -218,14 +321,13 @@ function addStep() {
 
 function removeStep(button) {
     button.parentElement.remove();
-    // Renumber steps
     document.querySelectorAll('.step-number').forEach((stepNum, index) => {
         stepNum.textContent = `${index + 1}.`;
     });
 }
 
 function handleImagePreview(e) {
-    const files = Array.from(e.target.files).slice(0, 5); // Limit to 5 images
+    const files = Array.from(e.target.files).slice(0, 5);
     const preview = document.getElementById('imagePreview');
     preview.innerHTML = '';
     
@@ -258,8 +360,8 @@ function handleImagePreview(e) {
 function resetForm() {
     document.getElementById('recipeForm').reset();
     document.getElementById('imagePreview').innerHTML = '';
+    document.getElementById('servingSize').value = '4'; // Reset to default
     
-    // Reset to single ingredient and step
     document.getElementById('ingredientsList').innerHTML = `
         <div class="ingredient-row">
             <input type="text" placeholder="Ingredient name" class="ingredient-name">
@@ -287,7 +389,6 @@ function updateCategoryGrid() {
         });
     });
     
-    // Get top 6 categories
     const topCategories = Object.entries(categoryCount)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 6)
@@ -304,7 +405,6 @@ function updateCategoryGrid() {
         categoryGrid.appendChild(button);
     });
     
-    // If no recipes, show default categories
     if (topCategories.length === 0) {
         const defaultCategories = ['Pasta', 'Rice', 'Potatoes', 'High-Protein', 'Quick Meals', 'Desserts'];
         defaultCategories.forEach(category => {
@@ -326,7 +426,6 @@ function updateFilters() {
     });
     
     const filters = document.getElementById('filters');
-    // Clear and add "All" button
     filters.innerHTML = '<button class="filter-btn active" onclick="filterRecipes(\'all\')">All</button>';
     
     Array.from(categories).sort().forEach(category => {
@@ -340,17 +439,15 @@ function updateFilters() {
 
 function filterAndShowRecipes(category) {
     showAllRecipes();
-    setTimeout(() => filterRecipes(category), 100); // Small delay to ensure page is shown
+    setTimeout(() => filterRecipes(category), 100);
 }
 
 function filterRecipes(category) {
-    // Update active filter
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.classList.remove('active');
     });
     event.target.classList.add('active');
     
-    // Filter recipes
     let filteredRecipes;
     if (category === 'all') {
         filteredRecipes = recipes;
@@ -376,7 +473,6 @@ function displayRecipes(recipesToShow = recipes) {
         const recipeCard = document.createElement('div');
         recipeCard.className = 'recipe-card';
         
-        // Create image display - show first image if available
         const imageHtml = recipe.images && recipe.images.length > 0 
             ? `<img src="${recipe.images[0]}" alt="${recipe.title}" style="width: 100%; height: 200px; object-fit: cover; border-radius: 10px; margin-bottom: 15px;">` 
             : '<div style="width: 100%; height: 200px; background: linear-gradient(135deg, #B8D8D8, #7A9E9F); border-radius: 10px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; color: #4F6367; font-size: 18px; font-weight: bold;">No Image</div>';
@@ -384,7 +480,10 @@ function displayRecipes(recipesToShow = recipes) {
         recipeCard.innerHTML = `
             ${imageHtml}
             <div class="recipe-title">${recipe.title}</div>
-            <div class="recipe-time">${formatCookingTime(recipe.cookingTime)}</div>
+            <div>
+                <span class="recipe-time">${formatCookingTime(recipe.cookingTime)}</span>
+                <span class="recipe-servings">For ${recipe.servings} people</span>
+            </div>
             <div class="recipe-categories">
                 ${recipe.categories.map(cat => `<span class="category-tag">${cat}</span>`).join('')}
             </div>
@@ -402,7 +501,8 @@ function showRecipeDetail(recipeId) {
     const recipe = recipes.find(r => r.id === recipeId);
     if (!recipe) return;
     
-    // Create image gallery for detail view
+    currentRecipe = recipe; // Store current recipe for scaling
+    
     const imageGalleryHtml = recipe.images && recipe.images.length > 0 
         ? `<div style="margin-bottom: 20px;">
              <div style="display: flex; gap: 10px; flex-wrap: wrap;">
@@ -415,9 +515,25 @@ function showRecipeDetail(recipeId) {
     content.innerHTML = `
         <h1>${recipe.title}</h1>
         ${imageGalleryHtml}
-        <div class="recipe-time">${formatCookingTime(recipe.cookingTime)}</div>
+        <div>
+            <span class="recipe-time">${formatCookingTime(recipe.cookingTime)}</span>
+            <span class="recipe-servings">Original: For ${recipe.servings} people</span>
+        </div>
         <div class="recipe-categories" style="margin: 15px 0;">
             ${recipe.categories.map(cat => `<span class="category-tag">${cat}</span>`).join('')}
+        </div>
+        
+        <div class="serving-control">
+            <h3>Adjust Serving Size:</h3>
+            <div class="serving-buttons">
+                <button class="serving-btn" onclick="decreaseServings()">-</button>
+                <div class="serving-input">
+                    <input type="number" id="currentServings" value="${recipe.servings}" min="1" max="50" onchange="updateServingSize()">
+                    <span>people</span>
+                </div>
+                <button class="serving-btn" onclick="increaseServings()">+</button>
+                <span class="original-servings">(Original: ${recipe.servings} people)</span>
+            </div>
         </div>
         
         <h3>Ingredients:</h3>
@@ -438,7 +554,6 @@ function showRecipeDetail(recipeId) {
     `;
     
     showPage('recipe-detail-page');
-    // Don't update nav links for detail page
 }
 
 function deleteRecipeFromDetail(recipeId) {
@@ -449,7 +564,7 @@ function deleteRecipeFromDetail(recipeId) {
         recipes = recipes.filter(r => r.id !== recipeId);
         saveRecipes();
         showSuccessMessage('Recipe deleted successfully!');
-        showAllRecipes(); // Go back to all recipes page
+        showAllRecipes();
         updateCategoryGrid();
         updateFilters();
     }
@@ -468,5 +583,12 @@ function loadRecipes() {
     const stored = localStorage.getItem('cookbook-recipes');
     if (stored) {
         recipes = JSON.parse(stored);
+        // Add default serving size for existing recipes that don't have it
+        recipes.forEach(recipe => {
+            if (!recipe.servings) {
+                recipe.servings = 4; // Default to 4 people
+            }
+        });
+        saveRecipes(); // Save the updated recipes
     }
 }

@@ -156,13 +156,17 @@
 
         <!-- Add Recipe Page -->
         <div id="add-recipe-page" class="page">
-            <h1>Add New Recipe</h1>
+            <h1 id="recipeFormTitle">Add New Recipe</h1>
             <form id="recipeForm" class="recipe-form">
+                <!-- Hidden field for editing -->
+                <input type="hidden" id="editRecipeId">
+
                 <!-- Image Upload -->
                 <div class="form-section">
                     <label>Recipe Photos (up to 5):</label>
                     <input type="file" id="recipeImages" accept="image/*" multiple>
                     <div id="imagePreview" class="image-preview"></div>
+                    <div id="existingImages" class="existing-images"></div>
                 </div>
 
                 <!-- Recipe Title -->
@@ -175,6 +179,21 @@
                 <div class="form-section">
                     <label for="servingSize">For how many people:</label>
                     <input type="number" id="servingSize" min="1" max="50" value="4" required>
+                </div>
+
+                <!-- Nutrition Information -->
+                <div class="form-section">
+                    <label>Nutrition Information (per serving):</label>
+                    <div class="nutrition-inputs">
+                        <div class="nutrition-field">
+                            <input type="number" id="recipeKcal" placeholder="Calories" min="0" max="2000">
+                            <span>kcal</span>
+                        </div>
+                        <div class="nutrition-field">
+                            <input type="number" id="recipeProtein" placeholder="Protein" min="0" max="100" step="0.1">
+                            <span>g protein</span>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Cooking Time -->
@@ -227,7 +246,10 @@
                     <textarea id="recipeComments" placeholder="Any notes or modifications for next time..."></textarea>
                 </div>
 
-                <button type="submit">Save Recipe</button>
+                <div class="form-actions">
+                    <button type="submit" id="saveRecipeBtn">Save Recipe</button>
+                    <button type="button" onclick="cancelEdit()" id="cancelEditBtn" style="display: none;">Cancel</button>
+                </div>
             </form>
         </div>
 

@@ -9,6 +9,8 @@ let basketItems = []; // Shopping basket items
 let basketPeriod = { start: null, end: null }; // Current basket period
 let githubToken = null; // GitHub access token
 let gistId = null; // GitHub Gist ID for storage
+let isEditing = false; // Track if we're editing a recipe
+let existingImages = []; // Store existing images during edit
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -246,6 +248,102 @@ function loadGitHubConfig() {
     gistId = localStorage.getItem('cookbook-gist-id');
 }
 
+// Edit Recipe Functions
+function editRecipe(recipeId) {
+    const recipe = recipes.find(r => r.id === recipeId);
+    if (!recipe) return;
+    
+    isEditing = true;
+    existingImages = recipe.images ? [...recipe.images] : [];
+    
+    // Update form title and button text
+    document.getElementById('recipeFormTitle').textContent = 'Edit Recipe';
+    document.getElementById('saveRecipeBtn').textContent = 'Update Recipe';
+    document.getElementById('cancelEditBtn').style.display = 'inline-block';
+    
+    // Fill form with recipe data
+    document.getElementById('editRecipeId').value = recipeId;
+    document.getElementById('recipeTitle').value = recipe.title;
+    document.getElementById('servingSize').value = recipe.servings;
+    document.getElementById('recipeKcal').value = recipe.nutrition?.kcal || '';
+    document.getElementById('recipeProtein').value = recipe.nutrition?.protein || '';
+    document.getElementById('cookingHours').value = recipe.cookingTime?.hours || '';
+    document.getElementById('cookingMinutes').value = recipe.cookingTime?.minutes || '';
+    document.getElementById('recipeCategories').value = recipe.categories.join(', ');
+    document.getElementById('recipeComments').value = recipe.comments || '';
+    
+    // Fill ingredients
+    const ingredientsList = document.getElementById('ingredientsList');
+    ingredientsList.innerHTML = '';
+    recipe.ingredients.forEach(ingredient => {
+        const row = document.createElement('div');
+        row.className = 'ingredient-row';
+        row.innerHTML = `
+            <input type="text" placeholder="Ingredient name" class="ingredient-name" value="${ingredient.name}">
+            <input type="text" placeholder="Quantity" class="ingredient-quantity" value="${ingredient.quantity}">
+            <input type="text" placeholder="Unit" class="ingredient-unit" value="${ingredient.unit}">
+            <button type="button" onclick="removeIngredient(this)">Remove</button>
+        `;
+        ingredientsList.appendChild(row);
+    });
+    
+    // Fill steps
+    const stepsList = document.getElementById('stepsList');
+    stepsList.innerHTML = '';
+    recipe.steps.forEach((step, index) => {
+        const row = document.createElement('div');
+        row.className = 'step-row';
+        row.innerHTML = `
+            <span class="step-number">${index + 1}.</span>
+            <textarea placeholder="Describe this step..." class="step-text">${step}</textarea>
+            <button type="button" onclick="removeStep(this)">Remove</button>
+        `;
+        stepsList.appendChild(row);
+    });
+    
+    // Display existing images
+    displayExistingImages();
+    
+    // Show add recipe page
+    showAddRecipe();
+}
+
+function displayExistingImages() {
+    const existingImagesContainer = document.getElementById('existingImages');
+    existingImagesContainer.innerHTML = '';
+    
+    if (existingImages.length > 0) {
+        existingImages.forEach((image, index) => {
+            const imageDiv = document.createElement('div');
+            imageDiv.className = 'existing-image';
+            imageDiv.innerHTML = `
+                <img src="${image}" alt="Recipe image">
+                <button class="remove-existing-image" onclick="removeExistingImage(${index})">×</button>
+            `;
+            existingImagesContainer.appendChild(imageDiv);
+        });
+    }
+}
+
+function removeExistingImage(index) {
+    existingImages.splice(index, 1);
+    displayExistingImages();
+}
+
+function cancelEdit() {
+    isEditing = false;
+    existingImages = [];
+    
+    // Reset form
+    document.getElementById('recipeFormTitle').textContent = 'Add New Recipe';
+    document.getElementById('saveRecipeBtn').textContent = 'Save Recipe';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+    document.getElementById('existingImages').innerHTML = '';
+    
+    resetForm();
+    showAllRecipes();
+}
+
 // Initialize date inputs with current week
 function initializeDateInputs() {
     const today = new Date();
@@ -295,9 +393,15 @@ function showSchedule() {
 }
 
 function showAddRecipe() {
+    if (!isEditing) {
+        // Reset form title and button text for new recipe
+        document.getElementById('recipeFormTitle').textContent = 'Add New Recipe';
+        document.getElementById('saveRecipeBtn').textContent = 'Save Recipe';
+        document.getElementById('cancelEditBtn').style.display = 'none';
+        resetForm();
+    }
     showPage('add-recipe-page');
     updateActiveNavLink('add-link');
-    resetForm();
 }
 
 function showBasket() {
@@ -657,12 +761,16 @@ function populateModalRecipes() {
             ? `<img src="${recipe.images[0]}" alt="${recipe.title}">` 
             : '<div style="width: 60px; height: 60px; background: #B8D8D8; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #4F6367;">No Image</div>';
         
+        const nutritionText = recipe.nutrition && (recipe.nutrition.kcal || recipe.nutrition.protein) 
+            ? ` • ${recipe.nutrition.kcal ? recipe.nutrition.kcal + ' kcal' : ''}${recipe.nutrition.kcal && recipe.nutrition.protein ? ', ' : ''}${recipe.nutrition.protein ? recipe.nutrition.protein + 'g protein' : ''}`
+            : '';
+        
         item.innerHTML = `
             ${imageHtml}
             <div class="modal-recipe-info">
                 <div class="modal-recipe-title">${recipe.title}</div>
                 <div class="modal-recipe-meta">
-                    ${formatCookingTime(recipe.cookingTime)} • For ${recipe.servings} people
+                    ${formatCookingTime(recipe.cookingTime)} • For ${recipe.servings} people${nutritionText}
                     ${recipe.categories.length > 0 ? ' • ' + recipe.categories.slice(0, 2).join(', ') : ''}
                 </div>
             </div>
@@ -713,11 +821,20 @@ function removeMeal(mealKey, event) {
 async function handleRecipeSubmit(e) {
     e.preventDefault();
     
+    const editingId = document.getElementById('editRecipeId').value;
+    
     // Get images from the form
-    const images = await getRecipeImages();
+    const newImages = await getRecipeImages();
+    // Combine existing and new images (max 5 total)
+    const allImages = [...existingImages, ...newImages].slice(0, 5);
+    
+    const nutrition = {
+        kcal: parseInt(document.getElementById('recipeKcal').value) || null,
+        protein: parseFloat(document.getElementById('recipeProtein').value) || null
+    };
     
     const recipe = {
-        id: Date.now().toString(),
+        id: editingId || Date.now().toString(),
         title: document.getElementById('recipeTitle').value,
         servings: parseInt(document.getElementById('servingSize').value),
         ingredients: getIngredients(),
@@ -725,21 +842,42 @@ async function handleRecipeSubmit(e) {
         categories: document.getElementById('recipeCategories').value.split(',').map(cat => cat.trim()).filter(cat => cat),
         cookingTime: getCookingTime(),
         comments: document.getElementById('recipeComments').value,
-        images: images,
-        dateCreated: new Date().toISOString()
+        images: allImages,
+        nutrition: nutrition,
+        dateCreated: editingId ? recipes.find(r => r.id === editingId)?.dateCreated : new Date().toISOString(),
+        dateModified: editingId ? new Date().toISOString() : undefined
     };
     
-    recipes.push(recipe);
+    if (editingId) {
+        // Update existing recipe
+        const index = recipes.findIndex(r => r.id === editingId);
+        if (index !== -1) {
+            recipes[index] = recipe;
+        }
+        showSuccessMessage('Recipe updated successfully!');
+    } else {
+        // Add new recipe
+        recipes.push(recipe);
+        showSuccessMessage('Recipe saved successfully!');
+    }
+    
     saveRecipes();
+    
+    // Reset form and editing state
+    isEditing = false;
+    existingImages = [];
+    document.getElementById('recipeFormTitle').textContent = 'Add New Recipe';
+    document.getElementById('saveRecipeBtn').textContent = 'Save Recipe';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+    
     resetForm();
-    showSuccessMessage('Recipe saved successfully!');
     showAllRecipes();
 }
 
 function getRecipeImages() {
     return new Promise((resolve) => {
         const fileInput = document.getElementById('recipeImages');
-        const files = Array.from(fileInput.files).slice(0, 5);
+        const files = Array.from(fileInput.files);
         const imageData = [];
         
         if (files.length === 0) {
@@ -842,6 +980,22 @@ function updateServingSize() {
         ingredientsList.innerHTML = scaledIngredients.map(ing => 
             `<li>${ing.quantity} ${ing.unit} ${ing.name}</li>`
         ).join('');
+    }
+    
+    // Update nutrition if available
+    if (currentRecipe.nutrition && (currentRecipe.nutrition.kcal || currentRecipe.nutrition.protein)) {
+        const scaleFactor = newServings / currentRecipe.servings;
+        const scaledKcal = currentRecipe.nutrition.kcal ? Math.round(currentRecipe.nutrition.kcal * scaleFactor) : null;
+        const scaledProtein = currentRecipe.nutrition.protein ? (currentRecipe.nutrition.protein * scaleFactor).toFixed(1) : null;
+        
+        const nutritionInfo = document.querySelector('.nutrition-info');
+        if (nutritionInfo) {
+            nutritionInfo.innerHTML = `
+                ${scaledKcal ? `<div class="nutrition-item"><span class="nutrition-value">${scaledKcal}</span> kcal</div>` : ''}
+                ${scaledProtein ? `<div class="nutrition-item"><span class="nutrition-value">${scaledProtein}g</span> protein</div>` : ''}
+                <small>(scaled for ${newServings} people)</small>
+            `;
+        }
     }
 }
 
@@ -984,7 +1138,7 @@ function removeStep(button) {
 }
 
 function handleImagePreview(e) {
-    const files = Array.from(e.target.files).slice(0, 5);
+    const files = Array.from(e.target.files);
     const preview = document.getElementById('imagePreview');
     preview.innerHTML = '';
     
@@ -1016,7 +1170,9 @@ function handleImagePreview(e) {
 
 function resetForm() {
     document.getElementById('recipeForm').reset();
+    document.getElementById('editRecipeId').value = '';
     document.getElementById('imagePreview').innerHTML = '';
+    document.getElementById('existingImages').innerHTML = '';
     document.getElementById('servingSize').value = '4';
     
     document.getElementById('ingredientsList').innerHTML = `
@@ -1134,6 +1290,13 @@ function displayRecipes(recipesToShow = recipes) {
             ? `<img src="${recipe.images[0]}" alt="${recipe.title}" style="width: 100%; height: 200px; object-fit: cover; border-radius: 10px; margin-bottom: 15px;">` 
             : '<div style="width: 100%; height: 200px; background: linear-gradient(135deg, #B8D8D8, #7A9E9F); border-radius: 10px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; color: #4F6367; font-size: 18px; font-weight: bold;">No Image</div>';
         
+        const nutritionHtml = recipe.nutrition && (recipe.nutrition.kcal || recipe.nutrition.protein) 
+            ? `<div class="recipe-nutrition">
+                 ${recipe.nutrition.kcal ? `<span class="nutrition-tag">${recipe.nutrition.kcal} kcal</span>` : ''}
+                 ${recipe.nutrition.protein ? `<span class="nutrition-tag">${recipe.nutrition.protein}g protein</span>` : ''}
+               </div>`
+            : '';
+        
         recipeCard.innerHTML = `
             ${imageHtml}
             <div class="recipe-title">${recipe.title}</div>
@@ -1141,11 +1304,13 @@ function displayRecipes(recipesToShow = recipes) {
                 <span class="recipe-time">${formatCookingTime(recipe.cookingTime)}</span>
                 <span class="recipe-servings">For ${recipe.servings} people</span>
             </div>
+            ${nutritionHtml}
             <div class="recipe-categories">
                 ${recipe.categories.map(cat => `<span class="category-tag">${cat}</span>`).join('')}
             </div>
             <div class="recipe-actions">
-                <button class="view-recipe-btn" onclick="showRecipeDetail('${recipe.id}')">View Recipe</button>
+                <button class="view-recipe-btn" onclick="showRecipeDetail('${recipe.id}')">View</button>
+                <button class="edit-recipe-btn" onclick="editRecipe('${recipe.id}')">Edit</button>
                 <button class="delete-recipe-btn" onclick="deleteRecipe('${recipe.id}', event)">Delete</button>
             </div>
         `;
@@ -1168,6 +1333,14 @@ function showRecipeDetail(recipeId) {
            </div>`
         : '';
     
+    const nutritionHtml = recipe.nutrition && (recipe.nutrition.kcal || recipe.nutrition.protein)
+        ? `<div class="nutrition-info">
+             ${recipe.nutrition.kcal ? `<div class="nutrition-item"><span class="nutrition-value">${recipe.nutrition.kcal}</span> kcal</div>` : ''}
+             ${recipe.nutrition.protein ? `<div class="nutrition-item"><span class="nutrition-value">${recipe.nutrition.protein}g</span> protein</div>` : ''}
+             <small>per serving</small>
+           </div>`
+        : '';
+    
     const content = document.getElementById('recipeDetailContent');
     content.innerHTML = `
         <h1>${recipe.title}</h1>
@@ -1179,6 +1352,8 @@ function showRecipeDetail(recipeId) {
         <div class="recipe-categories" style="margin: 15px 0;">
             ${recipe.categories.map(cat => `<span class="category-tag">${cat}</span>`).join('')}
         </div>
+        
+        ${nutritionHtml}
         
         <div class="serving-control">
             <h3>Adjust Serving Size:</h3>
@@ -1206,6 +1381,7 @@ function showRecipeDetail(recipeId) {
         ${recipe.comments ? `<h3>Notes & Comments:</h3><p style="background: #EEF5DB; padding: 15px; border-radius: 8px; margin: 10px 0; border: 2px solid #B8D8D8;">${recipe.comments}</p>` : ''}
         
         <div style="margin-top: 30px;">
+            <button class="edit-recipe-btn" onclick="editRecipe('${recipe.id}')" style="margin-right: 10px;">Edit Recipe</button>
             <button class="delete-recipe-btn" onclick="deleteRecipeFromDetail('${recipe.id}')">Delete Recipe</button>
         </div>
     `;
@@ -1252,6 +1428,10 @@ function loadRecipes() {
         recipes.forEach(recipe => {
             if (!recipe.servings) {
                 recipe.servings = 4;
+            }
+            // Initialize nutrition if not present
+            if (!recipe.nutrition) {
+                recipe.nutrition = { kcal: null, protein: null };
             }
         });
         saveRecipes();

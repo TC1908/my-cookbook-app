@@ -18,11 +18,8 @@ document.addEventListener('DOMContentLoaded', function() {
     loadMealPlans();
     loadBasket();
     loadGitHubConfig();
-    updateCategoryGrid();
-    updateFilters();
+    refreshAllUI();
     initializeDateInputs();
-    updateBasketCount();
-    updateSyncButtons();
     
     // Setup form submission
     document.getElementById('recipeForm').addEventListener('submit', handleRecipeSubmit);
@@ -30,6 +27,39 @@ document.addEventListener('DOMContentLoaded', function() {
     // Setup image preview
     document.getElementById('recipeImages').addEventListener('change', handleImagePreview);
 });
+
+// New function to refresh all UI elements
+function refreshAllUI() {
+    console.log('🔄 Refreshing all UI elements...');
+    updateCategoryGrid();
+    updateFilters();
+    updateBasketCount();
+    updateSyncButtons();
+    
+    // Refresh current page display
+    const currentPage = document.querySelector('.page.active');
+    if (currentPage) {
+        const pageId = currentPage.id;
+        console.log(`📱 Current page: ${pageId}`);
+        
+        switch (pageId) {
+            case 'homepage':
+                updateCategoryGrid();
+                break;
+            case 'all-recipes-page':
+                displayRecipes();
+                break;
+            case 'schedule-page':
+                generateSchedule();
+                break;
+            case 'basket-page':
+                displayBasket();
+                break;
+        }
+    }
+    
+    console.log(`✅ UI refresh complete. Recipes: ${recipes.length}, Meal plans: ${Object.keys(mealPlans).length}, Basket: ${basketItems.length}`);
+}
 
 // Enhanced GitHub Sync Functions with Debugging
 function showSyncModal() {
@@ -265,40 +295,49 @@ async function loadFromGitHub() {
             basketItems: basketItems.length
         };
         
+        console.log('📥 Before loading - Current data:', oldCounts);
+        console.log('📥 Loading data from GitHub:', {
+            recipes: data.recipes?.length || 0,
+            mealPlans: Object.keys(data.mealPlans || {}).length,
+            basketItems: data.basketItems?.length || 0
+        });
+        
         // Update local data
         recipes = data.recipes || [];
         mealPlans = data.mealPlans || {};
         basketItems = data.basketItems || [];
         basketPeriod = data.basketPeriod || { start: null, end: null };
         
-        // Save to local storage
+        console.log('📥 After loading - Updated data:', {
+            recipes: recipes.length,
+            mealPlans: Object.keys(mealPlans).length,
+            basketItems: basketItems.length
+        });
+        
+        // Save to local storage immediately
+        showSyncStatus('📥 Saving to local storage...', 'loading');
         saveRecipes();
         saveMealPlans();
         saveBasket();
         
-        // Update UI
-        updateCategoryGrid();
-        updateFilters();
-        updateBasketCount();
-        
-        // Refresh current page
-        const currentPage = document.querySelector('.page.active').id;
-        if (currentPage === 'all-recipes-page') {
-            displayRecipes();
-        } else if (currentPage === 'schedule-page') {
-            generateSchedule();
-        } else if (currentPage === 'basket-page') {
-            displayBasket();
-        }
-        
-        const syncTime = data.lastSync ? new Date(data.lastSync).toLocaleString() : 'Unknown';
-        const newCounts = {
-            recipes: recipes.length,
-            mealPlans: Object.keys(mealPlans).length,
-            basketItems: basketItems.length
-        };
-        
-        showSyncStatus(`✅ Successfully loaded from GitHub!\n\n📊 Updated data:\n• Recipes: ${oldCounts.recipes} → ${newCounts.recipes}\n• Meal plans: ${oldCounts.mealPlans} → ${newCounts.mealPlans}\n• Basket items: ${oldCounts.basketItems} → ${newCounts.basketItems}\n\n🕒 Last sync: ${syncTime}\n🆔 Gist: ${targetGistId}`, 'success');
+        // Force UI refresh
+        showSyncStatus('📥 Updating interface...', 'loading');
+        setTimeout(() => {
+            refreshAllUI();
+            
+            const newCounts = {
+                recipes: recipes.length,
+                mealPlans: Object.keys(mealPlans).length,
+                basketItems: basketItems.length
+            };
+            
+            const syncTime = data.lastSync ? new Date(data.lastSync).toLocaleString() : 'Unknown';
+            
+            showSyncStatus(`✅ Successfully loaded from GitHub!\n\n📊 Updated data:\n• Recipes: ${oldCounts.recipes} → ${newCounts.recipes}\n• Meal plans: ${oldCounts.mealPlans} → ${newCounts.mealPlans}\n• Basket items: ${oldCounts.basketItems} → ${newCounts.basketItems}\n\n🕒 Last sync: ${syncTime}\n🆔 Gist: ${targetGistId}`, 'success');
+            
+            // Show success message on main page
+            showSuccessMessage(`✅ Loaded ${newCounts.recipes} recipes, ${newCounts.mealPlans} meal plans, and ${newCounts.basketItems} basket items from GitHub!`);
+        }, 100);
         
     } catch (error) {
         console.error('Load error:', error);
@@ -348,7 +387,7 @@ async function testGitHubConnection() {
             (g.files && g.files["cookbook-data.json"])
         );
         
-        showSyncStatus(`✅ Connection successful!\n👤 User: ${userInfo.login}\n📝 Total gists: ${gists.length}\n🍽️ Cookbook gists found: ${cookbookGists.length}\n📊 Current gist ID: ${gistId || 'None'}`, 'success');
+        showSyncStatus(`✅ Connection successful!\n👤 User: ${userInfo.login}\n📝 Total gists: ${gists.length}\n🍽️ Cookbook gists found: ${cookbookGists.length}\n📊 Current gist ID: ${gistId || 'None'}\n📱 Local data: ${recipes.length} recipes, ${Object.keys(mealPlans).length} meal plans, ${basketItems.length} basket items`, 'success');
         
     } catch (error) {
         showSyncStatus(`❌ Connection test failed: ${error.message}`, 'error');
@@ -773,7 +812,9 @@ function displayBasket() {
 }
 
 function updateBasketCount() {
-    document.getElementById('basketCount').textContent = basketItems.length;
+    const count = basketItems.length;
+    document.getElementById('basketCount').textContent = count;
+    console.log(`🛒 Updated basket count to: ${count}`);
 }
 
 // Schedule functions
@@ -1030,6 +1071,9 @@ async function handleRecipeSubmit(e) {
     
     resetForm();
     showAllRecipes();
+    
+    // Refresh UI
+    refreshAllUI();
 }
 
 function getRecipeImages() {
@@ -1192,12 +1236,7 @@ function deleteRecipe(recipeId, event) {
         });
         saveMealPlans();
         
-        displayRecipes();
-        updateCategoryGrid();
-        updateFilters();
-        if (document.getElementById('schedule-page').classList.contains('active')) {
-            generateSchedule();
-        }
+        refreshAllUI();
     }
 }
 
@@ -1386,6 +1425,8 @@ function updateCategoryGrid() {
             categoryGrid.appendChild(button);
         });
     }
+    
+    console.log(`🏠 Updated category grid with ${topCategories.length} categories`);
 }
 
 function updateFilters() {
@@ -1406,6 +1447,8 @@ function updateFilters() {
         button.onclick = () => filterRecipes(category);
         filters.appendChild(button);
     });
+    
+    console.log(`🔍 Updated filters with ${categories.size} categories`);
 }
 
 function filterAndShowRecipes(category) {
@@ -1434,6 +1477,8 @@ function filterRecipes(category) {
 function displayRecipes(recipesToShow = recipes) {
     const recipesGrid = document.getElementById('recipesGrid');
     recipesGrid.innerHTML = '';
+    
+    console.log(`📝 Displaying ${recipesToShow.length} recipes`);
     
     if (recipesToShow.length === 0) {
         recipesGrid.innerHTML = '<p style="text-align: center; font-size: 1.2em; color: #4F6367;">No recipes found. Add your first recipe!</p>';
@@ -1565,8 +1610,7 @@ function deleteRecipeFromDetail(recipeId) {
         
         showSuccessMessage('Recipe deleted successfully!');
         showAllRecipes();
-        updateCategoryGrid();
-        updateFilters();
+        refreshAllUI();
     }
 }
 
@@ -1577,6 +1621,7 @@ function goBack() {
 // Storage functions
 function saveRecipes() {
     localStorage.setItem('cookbook-recipes', JSON.stringify(recipes));
+    console.log(`💾 Saved ${recipes.length} recipes to localStorage`);
 }
 
 function loadRecipes() {
@@ -1593,17 +1638,24 @@ function loadRecipes() {
             }
         });
         saveRecipes();
+        console.log(`📖 Loaded ${recipes.length} recipes from localStorage`);
+    } else {
+        console.log('📖 No recipes found in localStorage');
     }
 }
 
 function saveMealPlans() {
     localStorage.setItem('cookbook-meal-plans', JSON.stringify(mealPlans));
+    console.log(`💾 Saved ${Object.keys(mealPlans).length} meal plans to localStorage`);
 }
 
 function loadMealPlans() {
     const stored = localStorage.getItem('cookbook-meal-plans');
     if (stored) {
         mealPlans = JSON.parse(stored);
+        console.log(`📅 Loaded ${Object.keys(mealPlans).length} meal plans from localStorage`);
+    } else {
+        console.log('📅 No meal plans found in localStorage');
     }
 }
 
@@ -1612,6 +1664,7 @@ function saveBasket() {
         items: basketItems, 
         period: basketPeriod 
     }));
+    console.log(`💾 Saved ${basketItems.length} basket items to localStorage`);
 }
 
 function loadBasket() {
@@ -1620,6 +1673,9 @@ function loadBasket() {
         const basket = JSON.parse(stored);
         basketItems = basket.items || [];
         basketPeriod = basket.period || { start: null, end: null };
+        console.log(`🛒 Loaded ${basketItems.length} basket items from localStorage`);
+    } else {
+        console.log('🛒 No basket found in localStorage');
     }
 }
 

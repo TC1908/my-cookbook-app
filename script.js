@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('recipeImages').addEventListener('change', handleImagePreview);
 });
 
-// GitHub Sync Functions
+// Enhanced GitHub Sync Functions with Debugging
 function showSyncModal() {
     const modal = document.getElementById('syncModal');
     const tokenInput = document.getElementById('githubToken');
@@ -42,6 +42,7 @@ function showSyncModal() {
     }
     
     updateSyncButtons();
+    showSyncStatus(`Ready to sync. Current data: ${recipes.length} recipes, ${Object.keys(mealPlans).length} meal plans, ${basketItems.length} basket items.`, 'loading');
     modal.style.display = 'block';
 }
 
@@ -50,7 +51,7 @@ function closeSyncModal() {
     clearSyncStatus();
 }
 
-function saveToken() {
+async function saveToken() {
     const token = document.getElementById('githubToken').value.trim();
     
     if (!token) {
@@ -63,16 +64,41 @@ function saveToken() {
         return;
     }
     
-    githubToken = token;
-    localStorage.setItem('cookbook-github-token', token);
-    updateSyncButtons();
-    showSyncStatus('Token saved successfully! You can now sync your data.', 'success');
+    showSyncStatus('Testing token permissions...', 'loading');
+    
+    try {
+        // Test the token by checking user info
+        const testResponse = await fetch('https://api.github.com/user', {
+            headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        
+        if (!testResponse.ok) {
+            throw new Error(`Token test failed: ${testResponse.status} - ${testResponse.statusText}`);
+        }
+        
+        const userInfo = await testResponse.json();
+        githubToken = token;
+        localStorage.setItem('cookbook-github-token', token);
+        updateSyncButtons();
+        showSyncStatus(`Token saved successfully! Connected as: ${userInfo.login}. You can now sync your data.`, 'success');
+        
+    } catch (error) {
+        showSyncStatus(`Token test failed: ${error.message}. Please check your token permissions.`, 'error');
+        console.error('Token test error:', error);
+    }
 }
 
 function updateSyncButtons() {
     const hasToken = !!githubToken;
     document.getElementById('syncToBtn').disabled = !hasToken;
     document.getElementById('loadFromBtn').disabled = !hasToken;
+    
+    if (hasToken && gistId) {
+        showSyncStatus(`Token saved. Gist ID: ${gistId.substring(0, 8)}... Ready to sync!`, 'success');
+    }
 }
 
 async function syncToGitHub() {
@@ -81,7 +107,7 @@ async function syncToGitHub() {
         return;
     }
     
-    showSyncStatus('Syncing data to GitHub...', 'loading');
+    showSyncStatus('📤 Syncing data to GitHub...', 'loading');
     
     try {
         const data = {
@@ -89,15 +115,22 @@ async function syncToGitHub() {
             mealPlans: mealPlans,
             basketItems: basketItems,
             basketPeriod: basketPeriod,
-            lastSync: new Date().toISOString()
+            lastSync: new Date().toISOString(),
+            deviceInfo: {
+                userAgent: navigator.userAgent,
+                timestamp: Date.now()
+            }
         };
         
         const gistData = {
-            description: "Virtual Cookbook Data",
+            description: "Virtual Cookbook Data - Personal Recipes & Meal Plans",
             public: false,
             files: {
                 "cookbook-data.json": {
                     content: JSON.stringify(data, null, 2)
+                },
+                "README.md": {
+                    content: `# Virtual Cookbook Data\n\nLast synced: ${new Date().toLocaleString()}\nRecipes: ${recipes.length}\nMeal plans: ${Object.keys(mealPlans).length}\nBasket items: ${basketItems.length}\n\nThis gist contains your personal cookbook data.`
                 }
             }
         };
@@ -110,6 +143,9 @@ async function syncToGitHub() {
         if (gistId) {
             url = `https://api.github.com/gists/${gistId}`;
             method = 'PATCH';
+            showSyncStatus(`📤 Updating existing gist (${gistId.substring(0, 8)}...)`, 'loading');
+        } else {
+            showSyncStatus('📤 Creating new gist...', 'loading');
         }
         
         response = await fetch(url, {
@@ -117,24 +153,26 @@ async function syncToGitHub() {
             headers: {
                 'Authorization': `token ${githubToken}`,
                 'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'User-Agent': 'VirtualCookbook/1.0'
             },
             body: JSON.stringify(gistData)
         });
         
         if (!response.ok) {
-            throw new Error(`GitHub API error: ${response.status}`);
+            const errorData = await response.text();
+            throw new Error(`GitHub API error: ${response.status} - ${response.statusText}\nDetails: ${errorData}`);
         }
         
         const gist = await response.json();
         gistId = gist.id;
         localStorage.setItem('cookbook-gist-id', gistId);
         
-        showSyncStatus(`Successfully synced ${recipes.length} recipes, ${Object.keys(mealPlans).length} meal plans, and ${basketItems.length} basket items to GitHub!`, 'success');
+        showSyncStatus(`✅ Successfully synced to GitHub!\nGist ID: ${gistId}\n📊 Data: ${recipes.length} recipes, ${Object.keys(mealPlans).length} meal plans, ${basketItems.length} basket items\n🔗 URL: ${gist.html_url}`, 'success');
         
     } catch (error) {
         console.error('Sync error:', error);
-        showSyncStatus(`Sync failed: ${error.message}`, 'error');
+        showSyncStatus(`❌ Sync failed: ${error.message}`, 'error');
     }
 }
 
@@ -144,57 +182,88 @@ async function loadFromGitHub() {
         return;
     }
     
-    showSyncStatus('Loading data from GitHub...', 'loading');
+    showSyncStatus('📥 Searching for cookbook data on GitHub...', 'loading');
     
     try {
-        // First, try to find existing gist
-        if (!gistId) {
-            // Search for our gist
-            const gistsResponse = await fetch('https://api.github.com/gists', {
+        let targetGistId = gistId;
+        
+        // First, search for our gist if we don't have the ID
+        if (!targetGistId) {
+            showSyncStatus('📥 Searching for cookbook gist...', 'loading');
+            
+            const gistsResponse = await fetch('https://api.github.com/gists?per_page=100', {
                 headers: {
                     'Authorization': `token ${githubToken}`,
-                    'Accept': 'application/vnd.github.v3+json'
+                    'Accept': 'application/vnd.github.v3+json',
+                    'User-Agent': 'VirtualCookbook/1.0'
                 }
             });
             
             if (!gistsResponse.ok) {
-                throw new Error(`GitHub API error: ${gistsResponse.status}`);
+                throw new Error(`GitHub API error: ${gistsResponse.status} - ${gistsResponse.statusText}`);
             }
             
             const gists = await gistsResponse.json();
+            console.log(`Found ${gists.length} gists, searching for cookbook data...`);
+            
             const cookbookGist = gists.find(g => 
-                g.description === "Virtual Cookbook Data" && 
-                g.files["cookbook-data.json"]
+                (g.description && g.description.includes("Virtual Cookbook Data")) ||
+                (g.files && g.files["cookbook-data.json"])
             );
             
             if (cookbookGist) {
-                gistId = cookbookGist.id;
+                targetGistId = cookbookGist.id;
+                gistId = targetGistId;
                 localStorage.setItem('cookbook-gist-id', gistId);
+                showSyncStatus(`📥 Found cookbook gist: ${targetGistId.substring(0, 8)}...`, 'loading');
             } else {
-                throw new Error('No cookbook data found on GitHub. Please sync from a device that has data first.');
+                throw new Error(`❌ No cookbook data found on GitHub.\n\n🔍 Searched ${gists.length} gists.\n💡 Make sure to sync from your laptop/computer first where you have recipes.`);
             }
         }
         
         // Load the gist data
-        const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+        showSyncStatus(`📥 Loading data from gist ${targetGistId.substring(0, 8)}...`, 'loading');
+        
+        const response = await fetch(`https://api.github.com/gists/${targetGistId}`, {
             headers: {
                 'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json'
+                'Accept': 'application/vnd.github.v3+json',
+                'User-Agent': 'VirtualCookbook/1.0'
             }
         });
         
         if (!response.ok) {
-            throw new Error(`GitHub API error: ${response.status}`);
+            if (response.status === 404) {
+                // Clear invalid gist ID
+                gistId = null;
+                localStorage.removeItem('cookbook-gist-id');
+                throw new Error('❌ Cookbook gist not found (404).\n💡 Try syncing from your original device first.');
+            }
+            throw new Error(`GitHub API error: ${response.status} - ${response.statusText}`);
         }
         
         const gist = await response.json();
         const fileContent = gist.files["cookbook-data.json"]?.content;
         
         if (!fileContent) {
-            throw new Error('No cookbook data found in the gist');
+            throw new Error('❌ No cookbook-data.json found in the gist.\n💡 Make sure the gist was created by this app.');
         }
         
+        showSyncStatus('📥 Parsing cookbook data...', 'loading');
+        
         const data = JSON.parse(fileContent);
+        
+        // Validate data structure
+        if (!data.recipes) {
+            throw new Error('❌ Invalid data format - missing recipes array.');
+        }
+        
+        // Store current data counts for comparison
+        const oldCounts = {
+            recipes: recipes.length,
+            mealPlans: Object.keys(mealPlans).length,
+            basketItems: basketItems.length
+        };
         
         // Update local data
         recipes = data.recipes || [];
@@ -223,17 +292,72 @@ async function loadFromGitHub() {
         }
         
         const syncTime = data.lastSync ? new Date(data.lastSync).toLocaleString() : 'Unknown';
-        showSyncStatus(`Successfully loaded ${recipes.length} recipes, ${Object.keys(mealPlans).length} meal plans, and ${basketItems.length} basket items from GitHub! (Last sync: ${syncTime})`, 'success');
+        const newCounts = {
+            recipes: recipes.length,
+            mealPlans: Object.keys(mealPlans).length,
+            basketItems: basketItems.length
+        };
+        
+        showSyncStatus(`✅ Successfully loaded from GitHub!\n\n📊 Updated data:\n• Recipes: ${oldCounts.recipes} → ${newCounts.recipes}\n• Meal plans: ${oldCounts.mealPlans} → ${newCounts.mealPlans}\n• Basket items: ${oldCounts.basketItems} → ${newCounts.basketItems}\n\n🕒 Last sync: ${syncTime}\n🆔 Gist: ${targetGistId}`, 'success');
         
     } catch (error) {
         console.error('Load error:', error);
-        showSyncStatus(`Load failed: ${error.message}`, 'error');
+        showSyncStatus(`${error.message}`, 'error');
+    }
+}
+
+// Diagnostic function to help debug
+async function testGitHubConnection() {
+    if (!githubToken) {
+        showSyncStatus('Please save your GitHub token first', 'error');
+        return;
+    }
+    
+    showSyncStatus('🔍 Testing GitHub connection...', 'loading');
+    
+    try {
+        // Test 1: User info
+        const userResponse = await fetch('https://api.github.com/user', {
+            headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        
+        if (!userResponse.ok) {
+            throw new Error(`User API failed: ${userResponse.status}`);
+        }
+        
+        const userInfo = await userResponse.json();
+        
+        // Test 2: List gists
+        const gistsResponse = await fetch('https://api.github.com/gists?per_page=10', {
+            headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        
+        if (!gistsResponse.ok) {
+            throw new Error(`Gists API failed: ${gistsResponse.status}`);
+        }
+        
+        const gists = await gistsResponse.json();
+        const cookbookGists = gists.filter(g => 
+            (g.description && g.description.includes("Virtual Cookbook")) ||
+            (g.files && g.files["cookbook-data.json"])
+        );
+        
+        showSyncStatus(`✅ Connection successful!\n👤 User: ${userInfo.login}\n📝 Total gists: ${gists.length}\n🍽️ Cookbook gists found: ${cookbookGists.length}\n📊 Current gist ID: ${gistId || 'None'}`, 'success');
+        
+    } catch (error) {
+        showSyncStatus(`❌ Connection test failed: ${error.message}`, 'error');
     }
 }
 
 function showSyncStatus(message, type) {
     const status = document.getElementById('syncStatus');
-    status.textContent = message;
+    status.innerHTML = message.replace(/\n/g, '<br>');
     status.className = `sync-status ${type}`;
 }
 
@@ -246,6 +370,40 @@ function clearSyncStatus() {
 function loadGitHubConfig() {
     githubToken = localStorage.getItem('cookbook-github-token');
     gistId = localStorage.getItem('cookbook-gist-id');
+    
+    if (githubToken) {
+        console.log('✅ GitHub token loaded');
+    }
+    if (gistId) {
+        console.log(`✅ Gist ID loaded: ${gistId}`);
+    }
+}
+
+// Manual sync functions for troubleshooting
+function resetSync() {
+    if (confirm('⚠️ Reset sync settings?\n\nThis will clear:\n• GitHub token\n• Gist ID\n• Sync history\n\nYour recipes remain safe on this device.')) {
+        githubToken = null;
+        gistId = null;
+        localStorage.removeItem('cookbook-github-token');
+        localStorage.removeItem('cookbook-gist-id');
+        
+        document.getElementById('githubToken').value = '';
+        updateSyncButtons();
+        showSyncStatus('🔄 Sync settings reset. Please enter your token again.', 'loading');
+    }
+}
+
+function forceCreateNewGist() {
+    if (!githubToken) {
+        showSyncStatus('Please save your GitHub token first', 'error');
+        return;
+    }
+    
+    if (confirm('🆕 Force create new gist?\n\nThis will create a new backup gist even if one already exists.')) {
+        gistId = null;
+        localStorage.removeItem('cookbook-gist-id');
+        syncToGitHub();
+    }
 }
 
 // Edit Recipe Functions
